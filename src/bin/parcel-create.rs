@@ -1,6 +1,8 @@
 extern crate clap;
+extern crate walkdir;
 
 use clap::{Arg, App};
+use walkdir::WalkDir;
 
 fn main() {
     let matches = App::new("My Super Program")
@@ -20,6 +22,9 @@ fn main() {
 
     println!("Generating output file: {}", matches.value_of("output").unwrap());
     for input in matches.values_of("input").unwrap() {
-        println!("Using input path: {}", input);
+        println!("\tUsing input path: {}", input);
+        for entry in WalkDir::new(input) {
+            println!("\t\t{:?}", entry.unwrap());
+        }
     }
 }
