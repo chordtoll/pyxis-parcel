@@ -1,8 +1,11 @@
 extern crate clap;
 extern crate walkdir;
 
+extern crate parcel;
+
 use clap::{Arg, App};
 use walkdir::WalkDir;
+use parcel::Parcel;
 
 fn main() {
     let matches = App::new("My Super Program")
@@ -20,11 +23,15 @@ fn main() {
                                .takes_value(true))
                           .get_matches();
 
-    println!("Generating output file: {}", matches.value_of("output").unwrap());
+    let parcel : Parcel = Parcel::new();
+
+    println!("{:#?}",parcel);
+
+    /*println!("Generating output file: {}", matches.value_of("output").unwrap());
     for input in matches.values_of("input").unwrap() {
         println!("\tUsing input path: {}", input);
         for entry in WalkDir::new(input) {
             println!("\t\t{:?}", entry.unwrap());
         }
-    }
+    }*/
 }
