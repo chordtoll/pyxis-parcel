@@ -10,3 +10,6 @@ edition = "2018"
 clap = "2.33.3"
 walkdir = "2.3.2"
 fuser = "0.7.0"
+serde_yaml = "0.8.17"
+serde =  { version = "1.0.125", features = ["derive"] }
+indoc = "1.0"
