@@ -160,6 +160,11 @@ impl Parcel {
 }
 
 #[cfg(test)]
+use std::io::Cursor;
+#[cfg(test)]
+use indoc::indoc;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
