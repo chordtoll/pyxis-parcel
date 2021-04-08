@@ -89,6 +89,7 @@ pub struct Parcel {
     root_inode: u64,
     inodes: HashMap<u64,Inode>,
     content: HashMap<u64,InodeContent>,
+    xattrs: HashMap<u64,HashMap<String,String>>,
     #[serde(skip)]
     file_offset: Option<u64>,
     #[serde(skip)]
@@ -112,6 +113,7 @@ impl Parcel {
             root_inode: 1,
             inodes: HashMap::new(),
             content: HashMap::new(),
+            xattrs: HashMap::new(),
             file_offset: None,
             next_inode: 1,
             next_offset: 0,
@@ -345,6 +347,7 @@ mod tests {
                 RegularFile:
                   offset: 3
                   size: 3
+            xattrs: {}
             ...
             foobar[package]
             name = "parcel"
