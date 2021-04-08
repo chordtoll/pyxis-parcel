@@ -2,6 +2,7 @@ extern crate fuser;
 extern crate serde;
 extern crate serde_yaml;
 extern crate indoc;
+extern crate lexiclean;
 
 use std::io;
 use std::io::prelude::*;
@@ -10,8 +11,11 @@ use std::fs;
 use std::fs::File;
 use std::os::linux::fs::MetadataExt;
 use std::ffi::OsString;
+use std::cmp::{max,min};
 use std::collections::HashMap;
+use std::path::{Path,PathBuf};
 use std::time::{SystemTime,UNIX_EPOCH,Duration};
+use lexiclean::Lexiclean;
 
 use serde::{Serialize, Deserialize};
 
@@ -225,7 +229,42 @@ impl Parcel {
             InodeContent::Directory(dir) => dir.insert(name.into_string().unwrap(),child),
             _ => panic!(),
         };
+
         self.inodes.get_mut(&child).unwrap().parent = parent;
+    }
+
+    pub fn select(&self, path: PathBuf) -> Option<u64> {
+        let path = match path.has_root() {
+            true => path,
+            false => Path::new("/").join(path),
+        };
+        let mut ino : Option<u64>= None;
+        for ent in path.lexiclean().iter() {
+            if ent == "/" {
+                ino = Some(self.root_inode);
+            } else {
+                ino = Some(match self.content.get(&ino?)? {
+                    InodeContent::Directory(d) => *d.get(ent.to_str()?)?,
+                    _ => return None,
+                });
+            }
+        }
+        ino
+    }
+
+    pub fn read<R: Read + Seek>(&self, reader: &mut R, ino: u64, offset: u64, size:Option<u64>) -> Option<Vec<u8>> {
+        let file = match self.content.get(&ino)? {
+            InodeContent::RegularFile(f) => f,
+            _ => return None,
+        };
+        reader.seek(SeekFrom::Start(self.file_offset? + file.offset + offset)).unwrap();
+        let size = match size {
+            Some(s) => max(min(s+offset,file.size)-offset,0),
+            None => file.size,
+        };
+        let mut buf = vec![0u8; size as usize];
+        reader.read_exact(&mut buf).ok()?;
+        Some(buf)
     }
 }
 
