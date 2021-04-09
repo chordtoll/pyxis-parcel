@@ -85,6 +85,7 @@ struct Inode {
     kind: InodeKind,
     parent: u64,
     attrs: InodeAttr,
+    xattrs: HashMap<OsString,Vec<u8>>
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -93,7 +94,6 @@ pub struct Parcel {
     root_inode: u64,
     inodes: HashMap<u64,Inode>,
     content: HashMap<u64,InodeContent>,
-    xattrs: HashMap<u64,HashMap<String,String>>,
     #[serde(skip)]
     file_offset: Option<u64>,
     #[serde(skip)]
@@ -117,14 +117,13 @@ impl Parcel {
             root_inode: 1,
             inodes: HashMap::new(),
             content: HashMap::new(),
-            xattrs: HashMap::new(),
             file_offset: None,
             next_inode: 1,
             next_offset: 0,
             to_add: HashMap::new(),
         };
         
-        parcel.inodes.insert(1,Inode { kind: InodeKind::Directory, parent: 0, attrs: ROOT_ATTRS });
+        parcel.inodes.insert(1,Inode { kind: InodeKind::Directory, parent: 0, attrs: ROOT_ATTRS, xattrs: HashMap::new() });
 
         parcel.content.insert(1,InodeContent::Directory(HashMap::new()));
 
@@ -180,12 +179,12 @@ impl Parcel {
         }
     }
 
-    pub fn add_file(&mut self, from: FileAdd, attrs: InodeAttr) -> u64 {
+    pub fn add_file(&mut self, from: FileAdd, attrs: InodeAttr, xattrs: HashMap<OsString,Vec<u8>>) -> u64 {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
 
-        self.inodes.insert(self.next_inode, Inode {kind: InodeKind::RegularFile, parent: 0, attrs: attrs});
+        self.inodes.insert(self.next_inode, Inode {kind: InodeKind::RegularFile, parent: 0, attrs: attrs, xattrs: xattrs});
 
         let filesize = match &from {
             FileAdd::Bytes(i) => i.len() as u64,
@@ -200,24 +199,24 @@ impl Parcel {
         self.next_inode-1
     }
 
-    pub fn add_directory(&mut self, attrs: InodeAttr) -> u64 {
+    pub fn add_directory(&mut self, attrs: InodeAttr, xattrs: HashMap<OsString,Vec<u8>>) -> u64 {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
 
-        self.inodes.insert( self.next_inode, Inode {kind: InodeKind::Directory, parent: 0, attrs: attrs});
+        self.inodes.insert( self.next_inode, Inode {kind: InodeKind::Directory, parent: 0, attrs: attrs, xattrs: xattrs});
         self.content.insert(self.next_inode,InodeContent::Directory(HashMap::new()));
 
         self.next_inode+=1;
         self.next_inode-1
     }
 
-    pub fn add_symlink(&mut self, target: OsString, attrs: InodeAttr) -> u64 {
+    pub fn add_symlink(&mut self, target: OsString, attrs: InodeAttr, xattrs: HashMap<OsString,Vec<u8>>) -> u64 {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
 
-        self.inodes.insert( self.next_inode, Inode {kind: InodeKind::Symlink, parent: 0, attrs: attrs});
+        self.inodes.insert( self.next_inode, Inode {kind: InodeKind::Symlink, parent: 0, attrs: attrs, xattrs: xattrs});
         self.content.insert(self.next_inode,InodeContent::Symlink(target.into_string().unwrap()));
 
         self.next_inode+=1;
@@ -314,6 +313,7 @@ mod tests {
                   uid: 0
                   gid: 0
                   rdev: 0
+                xattrs: {}
               2:
                 kind: RegularFile
                 parent: 1
@@ -332,6 +332,7 @@ mod tests {
                   uid: 0
                   gid: 0
                   rdev: 0
+                xattrs: {}
               4:
                 kind: RegularFile
                 parent: 1
@@ -350,6 +351,7 @@ mod tests {
                   uid: 0
                   gid: 0
                   rdev: 0
+                xattrs: {}
               3:
                 kind: RegularFile
                 parent: 1
@@ -368,6 +370,7 @@ mod tests {
                   uid: 0
                   gid: 0
                   rdev: 0
+                xattrs: {}
             content:
               1:
                 Directory:
@@ -386,7 +389,6 @@ mod tests {
                 RegularFile:
                   offset: 3
                   size: 3
-            xattrs: {}
             ...
             foobar[package]
             name = "parcel"

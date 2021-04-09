@@ -1,11 +1,13 @@
 extern crate clap;
 extern crate walkdir;
+extern crate xattr;
 
 extern crate parcel;
 
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
+use std::ffi::OsString;
 use std::path::{Path,PathBuf};
 use clap::{Arg, App};
 use walkdir::WalkDir;
@@ -44,19 +46,37 @@ fn main() {
 
             if file_type.is_file() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let ino = parcel.add_file(parcel::FileAdd::Name(entry.path().as_os_str().to_os_string()),attrs);
+                let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
+                for attr in xattr::list(entry.path()).unwrap() {
+                    xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
+                    println!("{:?} {:?}",attr.clone(),xattr::get(entry.path(),attr.clone()));
+                    panic!();
+                }
+                let ino = parcel.add_file(parcel::FileAdd::Name(entry.path().as_os_str().to_os_string()),attrs,xattrs);
                 dir_map.insert(entry_path.clone(),ino);
                 parcel.insert_dirent(parent_inode,entry_name.to_os_string(),ino);
             }
             else if file_type.is_dir() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let ino = parcel.add_directory(attrs);
+                let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
+                for attr in xattr::list(entry.path()).unwrap() {
+                    xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
+                    println!("{:?} {:?}",attr.clone(),xattr::get(entry.path(),attr.clone()));
+                    panic!();
+                }
+                let ino = parcel.add_directory(attrs,xattrs);
                 dir_map.insert(entry_path.clone(),ino);
                 parcel.insert_dirent(parent_inode,entry_name.to_os_string(),ino);
             }
             else if file_type.is_symlink() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let ino = parcel.add_symlink(fs::read_link(entry.path()).unwrap().as_os_str().to_os_string(),attrs);
+                let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
+                for attr in xattr::list(entry.path()).unwrap() {
+                    xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
+                    println!("{:?} {:?}",attr.clone(),xattr::get(entry.path(),attr.clone()));
+                    panic!();
+                }
+                let ino = parcel.add_symlink(fs::read_link(entry.path()).unwrap().as_os_str().to_os_string(),attrs,xattrs);
                 dir_map.insert(entry_path.clone(),ino);
                 parcel.insert_dirent(parent_inode,entry_name.to_os_string(),ino);
             }

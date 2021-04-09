@@ -14,3 +14,4 @@ serde_yaml = "0.8.17"
 serde =  { version = "1.0.125", features = ["derive"] }
 indoc = "1.0"
 lexiclean = "0.0.1"
+xattr = "0.2.2"
