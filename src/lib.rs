@@ -16,20 +16,32 @@ use std::collections::HashMap;
 use std::path::{Path,PathBuf};
 use std::time::{SystemTime,UNIX_EPOCH,Duration};
 use lexiclean::Lexiclean;
+use fuser::{FileAttr,FileType};
 
 use serde::{Serialize, Deserialize};
 
 
+
 const PARCEL_VERSION: u32 = 0;
 
-#[derive(Debug, Serialize, Deserialize)]
-enum InodeKind {
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord)]
+pub enum InodeKind {
     Directory,
     RegularFile,
     Symlink,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+impl From<InodeKind> for FileType {
+    fn from(item: InodeKind) -> Self {
+        match item {
+            InodeKind::Directory => FileType::Directory,
+            InodeKind::RegularFile => FileType::RegularFile,
+            InodeKind::Symlink => FileType::Symlink,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct InodeAttr {
     pub atime: SystemTime,
     pub mtime: SystemTime,
@@ -152,6 +164,7 @@ impl Parcel {
                         break;
                     }
                 }
+                buf.truncate(buf.len()-5);
                 res = serde_yaml::from_slice(&buf).unwrap();
                 res.file_offset = Some(input.stream_position().unwrap());
             },
@@ -163,7 +176,7 @@ impl Parcel {
     pub fn store<W: Write + Seek>(&self, mut output: W) {
         output.write(b"413\n").unwrap();
         serde_yaml::to_writer(&mut output,self).unwrap();
-        output.write(b"...\n").unwrap();
+        output.write(b"\n...\n").unwrap();
         let file_offset = output.stream_position().unwrap();
         for (ino,val) in self.to_add.iter() {
             match &self.content[ino] {
@@ -265,6 +278,86 @@ impl Parcel {
         reader.read_exact(&mut buf).ok()?;
         Some(buf)
     }
+
+    pub fn getattr(&self, ino: u64) -> Option<FileAttr> {
+        let inode = self.inodes.get(&ino)?;
+        let attrs = inode.attrs;
+        let content = self.content.get(&ino)?;
+        let size = match content {
+            InodeContent::RegularFile(f) => f.size,
+            InodeContent::Directory(_) => 0,
+            InodeContent::Symlink(s) => s.len() as u64,
+        };
+        let kind = match content {
+            InodeContent::RegularFile(_) => FileType::RegularFile,
+            InodeContent::Directory(_) => FileType::Directory,
+            InodeContent::Symlink(_) => FileType::Symlink,
+        };
+        Some(
+            FileAttr {
+                 atime:   attrs.atime
+                ,ctime:   attrs.ctime
+                ,mtime:   attrs.mtime
+                ,blksize: 8192
+                ,blocks:  (size+8191)/8192
+                ,gid:     attrs.gid
+                ,uid:     attrs.uid
+                ,ino:     ino
+                ,nlink:   attrs.nlink
+                ,padding: 0
+                ,perm:    attrs.perm as u16
+                ,rdev:    attrs.rdev as u32
+                ,size:    size
+                ,kind:    kind
+                ,flags:   0
+                ,crtime:  attrs.ctime
+            }
+        )
+    }
+
+    pub fn readdir(&self,ino: u64) -> Option<Vec<(u64,InodeKind,String)>> {
+        let mut res : Vec<(u64,InodeKind,String)> = Vec::new();
+
+        let content = match self.content.get(&ino)? {
+            InodeContent::Directory(d) => d,
+            _ => return None,
+        };
+        for (k,v) in content.iter() {
+            let kind = match self.content.get(&v)? {
+                InodeContent::RegularFile(_) => InodeKind::RegularFile,
+                InodeContent::Directory(_) => InodeKind::Directory,
+                InodeContent::Symlink(_) => InodeKind::Symlink,
+            };
+            res.push((*v,kind,k.to_string()))
+        }
+        Some(res)
+    }
+
+    pub fn lookup(&self,parent: u64, name: String) -> Option<u64> {
+
+        let content = match self.content.get(&parent)? {
+            InodeContent::Directory(d) => d,
+            _ => return None,
+        };
+        for (k,v) in content.iter() {
+            if *k==name {
+                return Some(*v);
+            }
+        }
+        None
+    }
+
+    pub fn readlink(&self, ino: u64) -> Option<Vec<u8>> {
+        let content = self.content.get(&ino)?;
+        match content {
+            InodeContent::Symlink(s) => Some(s.as_bytes().to_vec()),
+            _ => panic!(),
+        }
+    }
+
+    pub fn getxattrs(&self, ino: u64) -> Option<HashMap<OsString,Vec<u8>>> {
+        Some(self.inodes.get(&ino)?.xattrs.clone())
+    }
 }
 
 #[cfg(test)]
@@ -272,7 +365,7 @@ use std::io::Cursor;
 #[cfg(test)]
 use indoc::indoc;
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -409,4 +502,4 @@ mod tests {
         });
         Parcel::load(&mut instr);
     }
-}
+}*/

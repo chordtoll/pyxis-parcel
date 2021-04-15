@@ -49,8 +49,6 @@ fn main() {
                 let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
                     xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
-                    println!("{:?} {:?}",attr.clone(),xattr::get(entry.path(),attr.clone()));
-                    panic!();
                 }
                 let ino = parcel.add_file(parcel::FileAdd::Name(entry.path().as_os_str().to_os_string()),attrs,xattrs);
                 dir_map.insert(entry_path.clone(),ino);
@@ -61,8 +59,6 @@ fn main() {
                 let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
                     xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
-                    println!("{:?} {:?}",attr.clone(),xattr::get(entry.path(),attr.clone()));
-                    panic!();
                 }
                 let ino = parcel.add_directory(attrs,xattrs);
                 dir_map.insert(entry_path.clone(),ino);
@@ -73,8 +69,6 @@ fn main() {
                 let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
                     xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
-                    println!("{:?} {:?}",attr.clone(),xattr::get(entry.path(),attr.clone()));
-                    panic!();
                 }
                 let ino = parcel.add_symlink(fs::read_link(entry.path()).unwrap().as_os_str().to_os_string(),attrs,xattrs);
                 dir_map.insert(entry_path.clone(),ino);
