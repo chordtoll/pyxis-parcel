@@ -1,4 +1,4 @@
-extern crate fuser;
+extern crate fuse;
 extern crate serde;
 extern crate serde_yaml;
 extern crate indoc;
@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::path::{Path,PathBuf};
 use std::time::{SystemTime,UNIX_EPOCH,Duration};
 use lexiclean::Lexiclean;
-use fuser::{FileAttr,FileType};
+use fuse::{FileAttr,FileType};
 
 use serde::{Serialize, Deserialize};
 

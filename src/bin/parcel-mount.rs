@@ -1,6 +1,7 @@
+
 extern crate fork;
 extern crate clap;
-extern crate fuser;
+extern crate fuse;
 extern crate global;
 extern crate libc;
 
@@ -17,7 +18,7 @@ use std::collections::HashMap;
 use std::collections::BTreeMap;
 use fork::{daemon, Fork};
 use clap::{Arg, App};
-use fuser::{Filesystem, Request, ReplyEntry, ReplyAttr, ReplyDirectory, ReplyData, FileType, FileAttr, ReplyXattr};
+use fuse::{Filesystem, Request, ReplyEntry, ReplyAttr, ReplyDirectory, ReplyData, FileType, FileAttr, ReplyXattr};
 use global::Global;
 use libc::{ENOENT,ENODATA};
 
@@ -319,7 +320,9 @@ fn main() {
         .map(|o| o.as_ref())
         .collect::<Vec<&OsStr>>();
 
-        fuser::mount(PyxisFS, &mountpoint, &options).unwrap();
+        let res = fuse::mount(PyxisFS, &mountpoint, &options);
+
+        println!("{:?}",res);
         
         println!("Finished FUSE mount");        
     }
