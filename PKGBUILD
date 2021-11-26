@@ -8,6 +8,7 @@ arch=("x86_64")
 makedepends=("cargo")
 url="https://github.com/chordtoll/pyxis-parcel"
 source=("$pkgname-$pkgver.tar.gz::https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate")
+sha256sums=('3931982678eba123104f04e175500672213f311a0e9a61e819575b43dc12420d')
 
 prepare() {
     cd "$pkgname-$pkgver"
