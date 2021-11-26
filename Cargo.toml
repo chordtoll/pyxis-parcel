@@ -1,10 +1,13 @@
 [package]
-name = "parcel"
+name = "pyxis-parcel"
 version = "0.1.0"
 authors = ["chordtoll <git@chordtoll.com>"]
-edition = "2018"
+edition = "2021"
+description = "Utilities and library to manipulate parcel archives for the pyxis package manager"
+license = "MIT"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.arch]
+arch = ["x86_64"]
 
 [dependencies]
 clap = "2.33.3"
