@@ -1,6 +1,6 @@
 [package]
 name = "pyxis-parcel"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["chordtoll <git@chordtoll.com>"]
 edition = "2021"
 description = "Utilities and library to manipulate parcel archives for the pyxis package manager"
@@ -16,7 +16,6 @@ walkdir = "2.3.2"
 fuser = "0.9.1"
 serde_yaml = "0.8.21"
 serde =  { version = "1.0.130", features = ["derive"] }
-indoc = "1.0.3"
 lexiclean = "0.0.1"
 xattr = "0.2.2"
 fork = "0.1.18"
