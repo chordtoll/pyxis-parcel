@@ -10,11 +10,11 @@ edition = "2018"
 clap = "2.33.3"
 walkdir = "2.3.2"
 fuse = { git = "https://github.com/delehef/fuse-rs.git" }
-serde_yaml = "0.8.17"
-serde =  { version = "1.0.125", features = ["derive"] }
+serde_yaml = "0.8.21"
+serde =  { version = "1.0.130", features = ["derive"] }
 indoc = "1.0.3"
 lexiclean = "0.0.1"
 xattr = "0.2.2"
 fork = "0.1.18"
 global = "0.4.3"
-libc = "0.2.93"
+libc = "0.2.108"
