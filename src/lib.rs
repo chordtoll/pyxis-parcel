@@ -1,9 +1,3 @@
-extern crate fuse;
-extern crate serde;
-extern crate serde_yaml;
-extern crate indoc;
-extern crate lexiclean;
-
 use std::io;
 use std::io::prelude::*;
 use std::io::SeekFrom;
@@ -29,6 +23,7 @@ pub enum InodeKind {
     Directory,
     RegularFile,
     Symlink,
+    Char,
 }
 
 impl From<InodeKind> for FileType {
@@ -37,6 +32,7 @@ impl From<InodeKind> for FileType {
             InodeKind::Directory => FileType::Directory,
             InodeKind::RegularFile => FileType::RegularFile,
             InodeKind::Symlink => FileType::Symlink,
+            InodeKind::Char => FileType::CharDevice,
         }
     }
 }
@@ -84,6 +80,7 @@ enum InodeContent {
     Directory(HashMap<String,u64>),
     RegularFile(FileReference),
     Symlink(String),
+    Char(u64),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -120,6 +117,12 @@ pub struct Parcel {
 pub enum FileAdd {
     Bytes(Vec<u8>),
     Name(OsString),
+}
+
+impl Default for Parcel {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Parcel {
@@ -174,9 +177,9 @@ impl Parcel {
     }
 
     pub fn store<W: Write + Seek>(&self, mut output: W) {
-        output.write(b"413\n").unwrap();
+        output.write_all(b"413\n").unwrap();
         serde_yaml::to_writer(&mut output,self).unwrap();
-        output.write(b"\n...\n").unwrap();
+        output.write_all(b"\n...\n").unwrap();
         let file_offset = output.stream_position().unwrap();
         for (ino,val) in self.to_add.iter() {
             match &self.content[ino] {
@@ -197,7 +200,7 @@ impl Parcel {
             self.next_inode += 1;
         }
 
-        self.inodes.insert(self.next_inode, Inode {kind: InodeKind::RegularFile, parent: 0, attrs: attrs, xattrs: xattrs});
+        self.inodes.insert(self.next_inode, Inode {kind: InodeKind::RegularFile, parent: 0, attrs, xattrs});
 
         let filesize = match &from {
             FileAdd::Bytes(i) => i.len() as u64,
@@ -217,7 +220,7 @@ impl Parcel {
             self.next_inode += 1;
         }
 
-        self.inodes.insert( self.next_inode, Inode {kind: InodeKind::Directory, parent: 0, attrs: attrs, xattrs: xattrs});
+        self.inodes.insert( self.next_inode, Inode {kind: InodeKind::Directory, parent: 0, attrs, xattrs});
         self.content.insert(self.next_inode,InodeContent::Directory(HashMap::new()));
 
         self.next_inode+=1;
@@ -229,8 +232,24 @@ impl Parcel {
             self.next_inode += 1;
         }
 
-        self.inodes.insert( self.next_inode, Inode {kind: InodeKind::Symlink, parent: 0, attrs: attrs, xattrs: xattrs});
+        self.inodes.insert( self.next_inode, Inode {kind: InodeKind::Symlink, parent: 0, attrs, xattrs});
         self.content.insert(self.next_inode,InodeContent::Symlink(target.into_string().unwrap()));
+
+        self.next_inode+=1;
+        self.next_inode-1
+    }
+
+    pub fn add_hardlink(&mut self, target: OsString) -> u64 {
+        self.select(PathBuf::from(target)).expect("Unable to resolve target of hard link")
+    }
+
+    pub fn add_char(&mut self, attrs: InodeAttr, xattrs: HashMap<OsString,Vec<u8>>) -> u64 {
+        while self.inodes.contains_key(&self.next_inode) {
+            self.next_inode += 1;
+        }
+
+        self.inodes.insert( self.next_inode, Inode {kind: InodeKind::Char, parent: 0, attrs, xattrs});
+        self.content.insert(self.next_inode,InodeContent::Char(attrs.rdev));
 
         self.next_inode+=1;
         self.next_inode-1
@@ -287,28 +306,28 @@ impl Parcel {
             InodeContent::RegularFile(f) => f.size,
             InodeContent::Directory(_) => 0,
             InodeContent::Symlink(s) => s.len() as u64,
+            InodeContent::Char(_) => 0,
         };
         let kind = match content {
             InodeContent::RegularFile(_) => FileType::RegularFile,
             InodeContent::Directory(_) => FileType::Directory,
             InodeContent::Symlink(_) => FileType::Symlink,
+            InodeContent::Char(_) => FileType::CharDevice,
         };
         Some(
             FileAttr {
                  atime:   attrs.atime
                 ,ctime:   attrs.ctime
                 ,mtime:   attrs.mtime
-                ,blksize: 8192
                 ,blocks:  (size+8191)/8192
                 ,gid:     attrs.gid
                 ,uid:     attrs.uid
-                ,ino:     ino
+                ,ino
                 ,nlink:   attrs.nlink
-                ,padding: 0
                 ,perm:    attrs.perm as u16
                 ,rdev:    attrs.rdev as u32
-                ,size:    size
-                ,kind:    kind
+                ,size
+                ,kind
                 ,flags:   0
                 ,crtime:  attrs.ctime
             }
@@ -323,10 +342,11 @@ impl Parcel {
             _ => return None,
         };
         for (k,v) in content.iter() {
-            let kind = match self.content.get(&v)? {
+            let kind = match self.content.get(v)? {
                 InodeContent::RegularFile(_) => InodeKind::RegularFile,
                 InodeContent::Directory(_) => InodeKind::Directory,
                 InodeContent::Symlink(_) => InodeKind::Symlink,
+                InodeContent::Char(_) => InodeKind::Char,
             };
             res.push((*v,kind,k.to_string()))
         }
@@ -359,147 +379,3 @@ impl Parcel {
         Some(self.inodes.get(&ino)?.xattrs.clone())
     }
 }
-
-#[cfg(test)]
-use std::io::Cursor;
-#[cfg(test)]
-use indoc::indoc;
-
-/*#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn construct() {
-        Parcel::new();
-    }
-
-    #[test]
-    fn serialize() {
-        let buf : Vec<u8> = Vec::new();
-        Parcel::new().store(Cursor::new(buf));
-    }
-
-    #[test]
-    fn deserialize() {
-        let mut instr = Cursor::new(indoc! {br#"
-            413
-            ---
-            version: 0
-            root_inode: 1
-            inodes:
-              1:
-                kind: Directory
-                parent: 0
-                attrs:
-                  atime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  mtime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  ctime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  perm: 493
-                  nlink: 1
-                  uid: 0
-                  gid: 0
-                  rdev: 0
-                xattrs: {}
-              2:
-                kind: RegularFile
-                parent: 1
-                attrs:
-                  atime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  mtime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  ctime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  perm: 0
-                  nlink: 1
-                  uid: 0
-                  gid: 0
-                  rdev: 0
-                xattrs: {}
-              4:
-                kind: RegularFile
-                parent: 1
-                attrs:
-                  atime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  mtime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  ctime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  perm: 0
-                  nlink: 1
-                  uid: 0
-                  gid: 0
-                  rdev: 0
-                xattrs: {}
-              3:
-                kind: RegularFile
-                parent: 1
-                attrs:
-                  atime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  mtime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  ctime:
-                    secs_since_epoch: 0
-                    nanos_since_epoch: 0
-                  perm: 0
-                  nlink: 1
-                  uid: 0
-                  gid: 0
-                  rdev: 0
-                xattrs: {}
-            content:
-              1:
-                Directory:
-                  foo.txt: 2
-                  Cargo.toml: 4
-                  bar.txt: 3
-              2:
-                RegularFile:
-                  offset: 0
-                  size: 3
-              4:
-                RegularFile:
-                  offset: 6
-                  size: 360
-              3:
-                RegularFile:
-                  offset: 3
-                  size: 3
-            ...
-            foobar[package]
-            name = "parcel"
-            version = "0.1.0"
-            authors = ["chordtoll <git@chordtoll.com>"]
-            edition = "2018"
-
-            # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-            [dependencies]
-            clap = "2.33.3"
-            walkdir = "2.3.2"
-            fuser = "0.7.0"
-            serde_yaml = "0.8.17"
-            serde =  { version = "1.0.125", features = ["derive"] }
-            indoc = "1.0"
-            "#
-        });
-        Parcel::load(&mut instr);
-    }
-}*/

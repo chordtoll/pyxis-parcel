@@ -1,17 +1,12 @@
-extern crate clap;
-extern crate walkdir;
-extern crate xattr;
-
-extern crate parcel;
-
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
+use std::os::unix::fs::FileTypeExt;
 use std::ffi::OsString;
 use std::path::{Path,PathBuf};
 use clap::{Arg, App};
 use walkdir::WalkDir;
-use parcel::{Parcel,InodeAttr};
+use pyxis_parcel::{FileAdd, InodeAttr, Parcel};
 
 fn main() {
     let matches = App::new("Parcel-Create")
@@ -34,11 +29,11 @@ fn main() {
     let mut dir_map: HashMap<PathBuf,u64> = HashMap::new();
     dir_map.insert(PathBuf::from("/"),1);
 
-    for input in matches.value_of("input") {
+    for input in matches.values_of("input").unwrap() {
         for entry in WalkDir::new(input).min_depth(1) {
             let entry = entry.unwrap();
             let entry_path = Path::new("/").join(entry.path().strip_prefix(input).unwrap());
-            let parent_inode = dir_map.get(entry_path.parent().unwrap()).unwrap().clone();
+            let parent_inode = *dir_map.get(entry_path.parent().unwrap()).unwrap();
             let entry_name = entry_path.file_name().unwrap();
 
             let meta = entry.metadata().unwrap();
@@ -50,7 +45,7 @@ fn main() {
                 for attr in xattr::list(entry.path()).unwrap() {
                     xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
                 }
-                let ino = parcel.add_file(parcel::FileAdd::Name(entry.path().as_os_str().to_os_string()),attrs,xattrs);
+                let ino = parcel.add_file(FileAdd::Name(entry.path().as_os_str().to_os_string()),attrs,xattrs);
                 dir_map.insert(entry_path.clone(),ino);
                 parcel.insert_dirent(parent_inode,entry_name.to_os_string(),ino);
             }
@@ -73,6 +68,25 @@ fn main() {
                 let ino = parcel.add_symlink(fs::read_link(entry.path()).unwrap().as_os_str().to_os_string(),attrs,xattrs);
                 dir_map.insert(entry_path.clone(),ino);
                 parcel.insert_dirent(parent_inode,entry_name.to_os_string(),ino);
+            }
+            else if file_type.is_char_device() {
+                let attrs = InodeAttr::from_meta(&meta);
+                let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
+                for attr in xattr::list(entry.path()).unwrap() {
+                    xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
+                }
+                let ino = parcel.add_char(attrs,xattrs);
+                dir_map.insert(entry_path.clone(),ino);
+                parcel.insert_dirent(parent_inode,entry_name.to_os_string(),ino);
+            }
+            else if file_type.is_block_device() {
+                unimplemented!("Block device");
+            }
+            else if file_type.is_fifo() {
+                unimplemented!("FIFO");
+            }
+            else if file_type.is_socket() {
+                unimplemented!("Socket");
             }
             else {
                 panic!("Unknown file type: {:?}",file_type);

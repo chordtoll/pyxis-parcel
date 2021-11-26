@@ -1,15 +1,10 @@
-extern crate clap;
-extern crate walkdir;
-
-extern crate parcel;
-
 use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::io::BufReader;
 use std::path::PathBuf;
 use clap::{Arg, App};
-use parcel::Parcel;
+use pyxis_parcel::Parcel;
 
 fn main() {
     let matches = App::new("Parcel-Cat")
@@ -33,6 +28,6 @@ fn main() {
 
     let ino = parcel.select(PathBuf::from(matches.value_of("path").unwrap())).unwrap();
 
-    io::stdout().write(&parcel.read(&mut reader,ino,0,None).unwrap()).unwrap();
+    io::stdout().write_all(&parcel.read(&mut reader,ino,0,None).unwrap()).unwrap();
 
 }
