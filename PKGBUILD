@@ -1,14 +1,15 @@
-# Maintainer: chordtoll <git@chordtoll.com>
+# Maintainer: chordtoll <arch@chordtoll.com>
 pkgname=pyxis-parcel
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="Utilities to manipulate parcel archives for the pyxis package manager"
 license=("MIT")
 arch=("x86_64")
+depends=("fuse3" "gcc-libs")
 makedepends=("cargo")
 url="https://github.com/chordtoll/pyxis-parcel"
 source=("$pkgname-$pkgver.tar.gz::https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate")
-sha256sums=('3931982678eba123104f04e175500672213f311a0e9a61e819575b43dc12420d')
+sha256sums=('ebfe0ede45d3f7b720f1ef7890a6eb312e5ea561ccc36c27d7f6c2cb091791a5')
 
 prepare() {
     cd "$pkgname-$pkgver"
@@ -29,5 +30,6 @@ package() {
         -executable \
         -type f \
         -exec install -Dm0755 -t "$pkgdir/usr/bin/" {} +
+    install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
 }
 
