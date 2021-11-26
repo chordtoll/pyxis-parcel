@@ -9,7 +9,8 @@ use std::collections::HashMap;
 use std::collections::BTreeMap;
 use fork::{daemon, Fork};
 use clap::{Arg, App};
-use fuse::{Filesystem, Request, ReplyEntry, ReplyAttr, ReplyDirectory, ReplyData, FileType, FileAttr, ReplyXattr};
+use fuser::MountOption;
+use fuser::{Filesystem, Request, ReplyEntry, ReplyAttr, ReplyDirectory, ReplyData, FileType, FileAttr, ReplyXattr};
 use global::Global;
 use libc::{ENOENT,ENODATA};
 
@@ -164,7 +165,7 @@ impl Filesystem for PyxisFS {
         }
         reply.ok();
     }
-    fn read(&mut self, _req: &Request, ino: u64, fh: u64, offset: i64, size: u32, reply: ReplyData) {
+    fn read(&mut self, _req: &Request, ino: u64, fh: u64, offset: i64, size: u32, _flags: i32, _lock_owner: Option<u64>, reply: ReplyData) {
         if DEBUG {println!("read({:x},{},{},{})",ino,fh,offset,size);}
         let pcid;
         let inid;
@@ -283,13 +284,10 @@ fn main() {
     if let Ok(Fork::Child) = daemon(true, true) {
         println!("Starting FUSE mount");
 
+        let options = vec![MountOption::FSName("pyxis-parcel".to_string())
+                                         ,MountOption::RO];
 
-        let options = ["-d","-o", "ro", "-o", "fsname=pyxis-parcel"]
-        .iter()
-        .map(|o| o.as_ref())
-        .collect::<Vec<&OsStr>>();
-
-        let res = fuse::mount(PyxisFS, &mountpoint, &options);
+        let res = fuser::mount2(PyxisFS, &mountpoint, &options);
 
         println!("{:?}",res);
         

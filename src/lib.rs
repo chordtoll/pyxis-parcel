@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::path::{Path,PathBuf};
 use std::time::{SystemTime,UNIX_EPOCH,Duration};
 use lexiclean::Lexiclean;
-use fuse::{FileAttr,FileType};
+use fuser::{FileAttr,FileType};
 
 use serde::{Serialize, Deserialize};
 
@@ -320,6 +320,7 @@ impl Parcel {
                 ,ctime:   attrs.ctime
                 ,mtime:   attrs.mtime
                 ,blocks:  (size+8191)/8192
+                ,blksize: 8192
                 ,gid:     attrs.gid
                 ,uid:     attrs.uid
                 ,ino

@@ -13,7 +13,7 @@ arch = ["x86_64"]
 [dependencies]
 clap = "2.33.3"
 walkdir = "2.3.2"
-fuse = { git = "https://github.com/delehef/fuse-rs.git" }
+fuser = "0.9.1"
 serde_yaml = "0.8.21"
 serde =  { version = "1.0.130", features = ["derive"] }
 indoc = "1.0.3"
