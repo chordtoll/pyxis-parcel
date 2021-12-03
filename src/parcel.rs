@@ -87,14 +87,14 @@ impl Parcel {
 
         let mut magic: [u8; 4] = [0; 4];
 
-        input.read_exact(&mut magic).unwrap();
+        input.read_exact(&mut magic)?;
 
         match &magic {
             b"413\n" => {
                 let mut buf: Vec<u8> = Vec::new();
                 let mut buf_size = 0;
                 loop {
-                    input.read_until(0xA, &mut buf).unwrap();
+                    input.read_until(0xA, &mut buf)?;
                     if buf.len() == buf_size {
                         panic!();
                     }
@@ -104,8 +104,8 @@ impl Parcel {
                     }
                 }
                 buf.truncate(buf.len() - 5);
-                res = serde_yaml::from_slice(&buf).unwrap();
-                res.file_offset = Some(input.stream_position().unwrap());
+                res = serde_yaml::from_slice(&buf)?;
+                res.file_offset = Some(input.stream_position()?);
             }
             _ => panic!("Unknown magic: {:?}", magic),
         }
@@ -113,22 +113,19 @@ impl Parcel {
     }
 
     /// Write a parcel out to disk
-    pub fn store<W: Write + Seek>(&self, mut output: W) {
-        output.write_all(b"413\n").unwrap();
-        serde_yaml::to_writer(&mut output, self).unwrap();
-        output.write_all(b"\n...\n").unwrap();
-        let file_offset = output.stream_position().unwrap();
+    pub fn store<W: Write + Seek>(&self, mut output: W) -> Result<(), ParcelError> {
+        output.write_all(b"413\n")?;
+        serde_yaml::to_writer(&mut output, self)?;
+        output.write_all(b"\n...\n")?;
+        let file_offset = output.stream_position()?;
         for (ino, val) in self.to_add.iter() {
             match &self.content[ino] {
                 InodeContent::RegularFile(file) => {
-                    output
-                        .seek(SeekFrom::Start(file_offset + file.offset))
-                        .unwrap();
+                    output.seek(SeekFrom::Start(file_offset + file.offset))?;
                     assert_eq!(
                         match val {
-                            FileAdd::Bytes(content) => output.write(content).unwrap() as u64,
-                            FileAdd::Name(name) =>
-                                io::copy(&mut File::open(name).unwrap(), &mut output).unwrap(),
+                            FileAdd::Bytes(content) => output.write(content)? as u64,
+                            FileAdd::Name(name) => io::copy(&mut File::open(name)?, &mut output)?,
                         },
                         file.size
                     );
@@ -136,6 +133,7 @@ impl Parcel {
                 _ => panic!(),
             }
         }
+        Ok(())
     }
 
     /// Add a file to the parcel
@@ -144,7 +142,7 @@ impl Parcel {
         from: FileAdd,
         attrs: InodeAttr,
         xattrs: HashMap<OsString, Vec<u8>>,
-    ) -> u64 {
+    ) -> Result<u64, ParcelError> {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
@@ -161,7 +159,7 @@ impl Parcel {
 
         let filesize = match &from {
             FileAdd::Bytes(i) => i.len() as u64,
-            FileAdd::Name(name) => fs::metadata(name).unwrap().len(),
+            FileAdd::Name(name) => fs::metadata(name)?.len(),
         };
 
         self.to_add.insert(self.next_inode, from);
@@ -175,7 +173,7 @@ impl Parcel {
         self.next_offset += filesize;
 
         self.next_inode += 1;
-        self.next_inode - 1
+        Ok(self.next_inode - 1)
     }
 
     /// Add a directory to the parcel
@@ -206,7 +204,7 @@ impl Parcel {
         target: OsString,
         attrs: InodeAttr,
         xattrs: HashMap<OsString, Vec<u8>>,
-    ) -> u64 {
+    ) -> Result<u64, ParcelError> {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
@@ -222,17 +220,21 @@ impl Parcel {
         );
         self.content.insert(
             self.next_inode,
-            InodeContent::Symlink(target.into_string().unwrap()),
+            InodeContent::Symlink(
+                target
+                    .into_string()
+                    .or(Err(ParcelError::StringConversion))?,
+            ),
         );
 
         self.next_inode += 1;
-        self.next_inode - 1
+        Ok(self.next_inode - 1)
     }
 
     /// Add a hard link to an existing path in the parcel
-    pub fn add_hardlink(&mut self, target: OsString) -> u64 {
+    pub fn add_hardlink(&mut self, target: OsString) -> Result<u64, ParcelError> {
         self.select(PathBuf::from(target))
-            .expect("Unable to resolve target of hard link")
+            .ok_or(ParcelError::Enoent)
     }
 
     /// Add a character device to the parcel
@@ -258,13 +260,22 @@ impl Parcel {
     }
 
     /// Insert an entry to a directory mapping a filename to an inode
-    pub fn insert_dirent(&mut self, parent: u64, name: OsString, child: u64) {
+    pub fn insert_dirent(
+        &mut self,
+        parent: u64,
+        name: OsString,
+        child: u64,
+    ) -> Result<(), ParcelError> {
         match self.content.get_mut(&parent).unwrap() {
-            InodeContent::Directory(dir) => dir.insert(name.into_string().unwrap(), child),
+            InodeContent::Directory(dir) => dir.insert(
+                name.into_string().or(Err(ParcelError::StringConversion))?,
+                child,
+            ),
             _ => panic!(),
         };
 
         self.inodes.get_mut(&child).unwrap().parent = parent;
+        Ok(())
     }
 
     /// Get the inode number for a path
@@ -294,21 +305,24 @@ impl Parcel {
         ino: u64,
         offset: u64,
         size: Option<u64>,
-    ) -> Option<Vec<u8>> {
-        let file = match self.content.get(&ino)? {
+    ) -> Result<Vec<u8>, ParcelError> {
+        let file = match self.content.get(&ino).ok_or(ParcelError::Enoent)? {
             InodeContent::RegularFile(f) => f,
-            _ => return None,
+            _ => return Err(ParcelError::NotFile),
         };
-        reader
-            .seek(SeekFrom::Start(self.file_offset? + file.offset + offset))
-            .unwrap();
+        reader.seek(SeekFrom::Start(
+            self.file_offset
+                .expect("Parcel not properly loaded- no offset stored to data section")
+                + file.offset
+                + offset,
+        ))?;
         let size = match size {
             Some(s) => max(min(s + offset, file.size) - offset, 0),
             None => file.size,
         };
         let mut buf = vec![0u8; size as usize];
-        reader.read_exact(&mut buf).ok()?;
-        Some(buf)
+        reader.read_exact(&mut buf)?;
+        Ok(buf)
     }
 
     /// Get the attributes of an inode

@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![warn(clippy::unwrap_used)]
 
 //! Parcel file format for managing pyxis packages.
 
