@@ -1,6 +1,6 @@
 # Maintainer: chordtoll <arch@chordtoll.com>
 pkgname=pyxis-parcel
-pkgver=0.1.2
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Utilities to manipulate parcel archives for the pyxis package manager"
 license=("MIT")
