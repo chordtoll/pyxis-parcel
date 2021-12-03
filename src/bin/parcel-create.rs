@@ -1,33 +1,40 @@
-use std::collections::HashMap;
-use std::fs;
-use std::fs::File;
-use std::os::unix::fs::FileTypeExt;
-use std::ffi::OsString;
-use std::path::{Path,PathBuf};
-use clap::{Arg, App};
-use walkdir::WalkDir;
+use std::{
+    collections::HashMap,
+    ffi::OsString,
+    fs,
+    fs::File,
+    os::unix::fs::FileTypeExt,
+    path::{Path, PathBuf},
+};
+
+use clap::{App, Arg};
 use pyxis_parcel::{FileAdd, InodeAttr, Parcel};
+use walkdir::WalkDir;
 
 fn main() {
     let matches = App::new("Parcel-Create")
-                            .version("0.1.0")
-                            .author("chordtoll <git@chordtoll.com>")
-                            .about("Creates parcel archive files for the pyxis package manager")
-                            .arg(Arg::with_name("output")
-                                .value_name("OUTPUT")
-                                .help("The output parcel to generate")
-                                .takes_value(true))
-                            .arg(Arg::with_name("input")
-                                .value_name("INPUT")
-                                .help("The input directory to scan")
-                                .multiple(true)
-                                .takes_value(true))
-                            .get_matches();
+        .version("0.1.0")
+        .author("chordtoll <git@chordtoll.com>")
+        .about("Creates parcel archive files for the pyxis package manager")
+        .arg(
+            Arg::with_name("output")
+                .value_name("OUTPUT")
+                .help("The output parcel to generate")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("input")
+                .value_name("INPUT")
+                .help("The input directory to scan")
+                .multiple(true)
+                .takes_value(true),
+        )
+        .get_matches();
 
-    let mut parcel : Parcel = Parcel::new();
+    let mut parcel: Parcel = Parcel::new();
 
-    let mut dir_map: HashMap<PathBuf,u64> = HashMap::new();
-    dir_map.insert(PathBuf::from("/"),1);
+    let mut dir_map: HashMap<PathBuf, u64> = HashMap::new();
+    dir_map.insert(PathBuf::from("/"), 1);
 
     for input in matches.values_of("input").unwrap() {
         for entry in WalkDir::new(input).min_depth(1) {
@@ -41,55 +48,71 @@ fn main() {
 
             if file_type.is_file() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
+                let mut xattrs: HashMap<OsString, Vec<u8>> = HashMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
-                    xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
+                    xattrs.insert(
+                        attr.clone(),
+                        xattr::get(entry.path(), attr.clone()).unwrap().unwrap(),
+                    );
                 }
-                let ino = parcel.add_file(FileAdd::Name(entry.path().as_os_str().to_os_string()),attrs,xattrs);
-                dir_map.insert(entry_path.clone(),ino);
-                parcel.insert_dirent(parent_inode,entry_name.to_os_string(),ino);
-            }
-            else if file_type.is_dir() {
+                let ino = parcel.add_file(
+                    FileAdd::Name(entry.path().as_os_str().to_os_string()),
+                    attrs,
+                    xattrs,
+                );
+                dir_map.insert(entry_path.clone(), ino);
+                parcel.insert_dirent(parent_inode, entry_name.to_os_string(), ino);
+            } else if file_type.is_dir() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
+                let mut xattrs: HashMap<OsString, Vec<u8>> = HashMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
-                    xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
+                    xattrs.insert(
+                        attr.clone(),
+                        xattr::get(entry.path(), attr.clone()).unwrap().unwrap(),
+                    );
                 }
-                let ino = parcel.add_directory(attrs,xattrs);
-                dir_map.insert(entry_path.clone(),ino);
-                parcel.insert_dirent(parent_inode,entry_name.to_os_string(),ino);
-            }
-            else if file_type.is_symlink() {
+                let ino = parcel.add_directory(attrs, xattrs);
+                dir_map.insert(entry_path.clone(), ino);
+                parcel.insert_dirent(parent_inode, entry_name.to_os_string(), ino);
+            } else if file_type.is_symlink() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
+                let mut xattrs: HashMap<OsString, Vec<u8>> = HashMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
-                    xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
+                    xattrs.insert(
+                        attr.clone(),
+                        xattr::get(entry.path(), attr.clone()).unwrap().unwrap(),
+                    );
                 }
-                let ino = parcel.add_symlink(fs::read_link(entry.path()).unwrap().as_os_str().to_os_string(),attrs,xattrs);
-                dir_map.insert(entry_path.clone(),ino);
-                parcel.insert_dirent(parent_inode,entry_name.to_os_string(),ino);
-            }
-            else if file_type.is_char_device() {
+                let ino = parcel.add_symlink(
+                    fs::read_link(entry.path())
+                        .unwrap()
+                        .as_os_str()
+                        .to_os_string(),
+                    attrs,
+                    xattrs,
+                );
+                dir_map.insert(entry_path.clone(), ino);
+                parcel.insert_dirent(parent_inode, entry_name.to_os_string(), ino);
+            } else if file_type.is_char_device() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let mut xattrs : HashMap<OsString,Vec<u8>> = HashMap::new();
+                let mut xattrs: HashMap<OsString, Vec<u8>> = HashMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
-                    xattrs.insert(attr.clone(),xattr::get(entry.path(),attr.clone()).unwrap().unwrap());
+                    xattrs.insert(
+                        attr.clone(),
+                        xattr::get(entry.path(), attr.clone()).unwrap().unwrap(),
+                    );
                 }
-                let ino = parcel.add_char(attrs,xattrs);
-                dir_map.insert(entry_path.clone(),ino);
-                parcel.insert_dirent(parent_inode,entry_name.to_os_string(),ino);
-            }
-            else if file_type.is_block_device() {
+                let ino = parcel.add_char(attrs, xattrs);
+                dir_map.insert(entry_path.clone(), ino);
+                parcel.insert_dirent(parent_inode, entry_name.to_os_string(), ino);
+            } else if file_type.is_block_device() {
                 unimplemented!("Block device");
-            }
-            else if file_type.is_fifo() {
+            } else if file_type.is_fifo() {
                 unimplemented!("FIFO");
-            }
-            else if file_type.is_socket() {
+            } else if file_type.is_socket() {
                 unimplemented!("Socket");
-            }
-            else {
-                panic!("Unknown file type: {:?}",file_type);
+            } else {
+                panic!("Unknown file type: {:?}", file_type);
             }
         }
     }
