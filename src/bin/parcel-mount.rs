@@ -338,13 +338,15 @@ fn main() {
             Arg::with_name("mountpoint")
                 .value_name("MOUNTPOINT")
                 .help("The mountpoint to mount the parcel stack on")
-                .takes_value(true),
+                .takes_value(true)
+                .required(true),
         )
         .arg(
             Arg::with_name("manifest")
                 .value_name("MANIFEST")
                 .help("The mainfest containing a list of parcels to mount")
-                .takes_value(true),
+                .takes_value(true)
+                .required(true),
         )
         .get_matches();
 

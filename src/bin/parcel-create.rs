@@ -20,14 +20,16 @@ fn main() {
             Arg::with_name("output")
                 .value_name("OUTPUT")
                 .help("The output parcel to generate")
-                .takes_value(true),
+                .takes_value(true)
+                .required(true),
         )
         .arg(
             Arg::with_name("input")
                 .value_name("INPUT")
                 .help("The input directory to scan")
                 .multiple(true)
-                .takes_value(true),
+                .takes_value(true)
+                .required(true),
         )
         .get_matches();
 

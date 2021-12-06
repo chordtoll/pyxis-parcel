@@ -17,13 +17,15 @@ fn main() {
             Arg::with_name("parcel")
                 .value_name("PARCEL")
                 .help("The parcel to read")
-                .takes_value(true),
+                .takes_value(true)
+                .required(true),
         )
         .arg(
             Arg::with_name("path")
                 .value_name("PATH")
                 .help("The file to print")
-                .takes_value(true),
+                .takes_value(true)
+                .required(true),
         )
         .get_matches();
 
