@@ -17,6 +17,12 @@ fn main() {
         .author("chordtoll <git@chordtoll.com>")
         .about("Creates parcel archive files for the pyxis package manager")
         .arg(
+            Arg::with_name("version")
+                .takes_value(true)
+                .long("version")
+                .required(true),
+        )
+        .arg(
             Arg::with_name("output")
                 .value_name("OUTPUT")
                 .help("The output parcel to generate")
@@ -34,6 +40,8 @@ fn main() {
         .get_matches();
 
     let mut parcel: Parcel = Parcel::new();
+
+    parcel.metadata.version = matches.value_of("version").unwrap().to_owned();
 
     let mut dir_map: BTreeMap<PathBuf, u64> = BTreeMap::new();
     dir_map.insert(PathBuf::from("/"), 1);

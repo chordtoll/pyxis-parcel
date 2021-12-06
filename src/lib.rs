@@ -1,5 +1,6 @@
 #![warn(missing_docs)]
 #![warn(clippy::unwrap_used)]
+#![allow(clippy::new_without_default)]
 
 //! Parcel file format for managing pyxis packages.
 
@@ -14,8 +15,10 @@ mod error;
 mod inode;
 /// The parcel container. Classes and methods.
 mod parcel;
+/// Parcel metadata for the package manager
+mod metadata;
 
-const PARCEL_VERSION: u32 = 0;
+const PARCEL_VERSION: u32 = 1;
 
 const ROOT_ATTRS: InodeAttr = InodeAttr {
     atime: UNIX_EPOCH,

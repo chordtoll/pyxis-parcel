@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::ParcelError,
     inode::{FileReference, Inode, InodeAttr, InodeContent, InodeKind},
-    PARCEL_VERSION, ROOT_ATTRS,
+    PARCEL_VERSION, ROOT_ATTRS, metadata::ParcelMetadata,
 };
 
 /// Temporarily holds a file we want to add to the parcel
@@ -32,6 +32,8 @@ pub enum FileAdd {
 pub struct Parcel {
     version:     u32,
     root_inode:  u64,
+    /// The parcel's package metadata
+    pub metadata: ParcelMetadata,
     inodes:      BTreeMap<u64, Inode>,
     content:     BTreeMap<u64, InodeContent>,
     #[serde(skip)]
@@ -56,6 +58,7 @@ impl Parcel {
         let mut parcel = Parcel {
             version:     PARCEL_VERSION,
             root_inode:  1,
+            metadata: ParcelMetadata::new(),
             inodes:      BTreeMap::new(),
             content:     BTreeMap::new(),
             file_offset: None,
