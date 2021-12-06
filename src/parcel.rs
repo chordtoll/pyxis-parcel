@@ -109,6 +109,9 @@ impl Parcel {
             }
             _ => panic!("Unknown magic: {:?}", magic),
         }
+        if res.version != PARCEL_VERSION {
+            return Err(ParcelError::VersionMismatch);
+        }
         Ok(res)
     }
 

@@ -6,6 +6,7 @@ pub enum ParcelError {
     StringConversion,
     Enoent,
     NotFile,
+    VersionMismatch
 }
 
 impl From<std::io::Error> for ParcelError {
