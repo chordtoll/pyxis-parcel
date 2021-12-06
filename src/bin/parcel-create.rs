@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     ffi::OsString,
     fs,
     fs::File,
@@ -35,7 +35,7 @@ fn main() {
 
     let mut parcel: Parcel = Parcel::new();
 
-    let mut dir_map: HashMap<PathBuf, u64> = HashMap::new();
+    let mut dir_map: BTreeMap<PathBuf, u64> = BTreeMap::new();
     dir_map.insert(PathBuf::from("/"), 1);
 
     for input in matches.values_of("input").unwrap() {
@@ -50,7 +50,7 @@ fn main() {
 
             if file_type.is_file() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let mut xattrs: HashMap<OsString, Vec<u8>> = HashMap::new();
+                let mut xattrs: BTreeMap<OsString, Vec<u8>> = BTreeMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
                     xattrs.insert(
                         attr.clone(),
@@ -70,7 +70,7 @@ fn main() {
                     .unwrap();
             } else if file_type.is_dir() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let mut xattrs: HashMap<OsString, Vec<u8>> = HashMap::new();
+                let mut xattrs: BTreeMap<OsString, Vec<u8>> = BTreeMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
                     xattrs.insert(
                         attr.clone(),
@@ -84,7 +84,7 @@ fn main() {
                     .unwrap();
             } else if file_type.is_symlink() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let mut xattrs: HashMap<OsString, Vec<u8>> = HashMap::new();
+                let mut xattrs: BTreeMap<OsString, Vec<u8>> = BTreeMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
                     xattrs.insert(
                         attr.clone(),
@@ -107,7 +107,7 @@ fn main() {
                     .unwrap();
             } else if file_type.is_char_device() {
                 let attrs = InodeAttr::from_meta(&meta);
-                let mut xattrs: HashMap<OsString, Vec<u8>> = HashMap::new();
+                let mut xattrs: BTreeMap<OsString, Vec<u8>> = BTreeMap::new();
                 for attr in xattr::list(entry.path()).unwrap() {
                     xattrs.insert(
                         attr.clone(),

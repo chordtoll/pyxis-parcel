@@ -1,6 +1,6 @@
 use std::{
     cmp::{max, min},
-    collections::HashMap,
+    collections::BTreeMap,
     ffi::OsString,
     fs,
     fs::File,
@@ -32,8 +32,8 @@ pub enum FileAdd {
 pub struct Parcel {
     version:     u32,
     root_inode:  u64,
-    inodes:      HashMap<u64, Inode>,
-    content:     HashMap<u64, InodeContent>,
+    inodes:      BTreeMap<u64, Inode>,
+    content:     BTreeMap<u64, InodeContent>,
     #[serde(skip)]
     file_offset: Option<u64>,
     #[serde(skip)]
@@ -41,7 +41,7 @@ pub struct Parcel {
     #[serde(skip)]
     next_offset: u64,
     #[serde(skip)]
-    to_add:      HashMap<u64, FileAdd>,
+    to_add:      BTreeMap<u64, FileAdd>,
 }
 
 impl Default for Parcel {
@@ -56,12 +56,12 @@ impl Parcel {
         let mut parcel = Parcel {
             version:     PARCEL_VERSION,
             root_inode:  1,
-            inodes:      HashMap::new(),
-            content:     HashMap::new(),
+            inodes:      BTreeMap::new(),
+            content:     BTreeMap::new(),
             file_offset: None,
             next_inode:  1,
             next_offset: 0,
-            to_add:      HashMap::new(),
+            to_add:      BTreeMap::new(),
         };
 
         parcel.inodes.insert(
@@ -70,13 +70,13 @@ impl Parcel {
                 kind:   InodeKind::Directory,
                 parent: 0,
                 attrs:  ROOT_ATTRS,
-                xattrs: HashMap::new(),
+                xattrs: BTreeMap::new(),
             },
         );
 
         parcel
             .content
-            .insert(1, InodeContent::Directory(HashMap::new()));
+            .insert(1, InodeContent::Directory(BTreeMap::new()));
 
         parcel
     }
@@ -144,7 +144,7 @@ impl Parcel {
         &mut self,
         from: FileAdd,
         attrs: InodeAttr,
-        xattrs: HashMap<OsString, Vec<u8>>,
+        xattrs: BTreeMap<OsString, Vec<u8>>,
     ) -> Result<u64, ParcelError> {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
@@ -180,7 +180,7 @@ impl Parcel {
     }
 
     /// Add a directory to the parcel
-    pub fn add_directory(&mut self, attrs: InodeAttr, xattrs: HashMap<OsString, Vec<u8>>) -> u64 {
+    pub fn add_directory(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
@@ -195,7 +195,7 @@ impl Parcel {
             },
         );
         self.content
-            .insert(self.next_inode, InodeContent::Directory(HashMap::new()));
+            .insert(self.next_inode, InodeContent::Directory(BTreeMap::new()));
 
         self.next_inode += 1;
         self.next_inode - 1
@@ -206,7 +206,7 @@ impl Parcel {
         &mut self,
         target: OsString,
         attrs: InodeAttr,
-        xattrs: HashMap<OsString, Vec<u8>>,
+        xattrs: BTreeMap<OsString, Vec<u8>>,
     ) -> Result<u64, ParcelError> {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
@@ -241,7 +241,7 @@ impl Parcel {
     }
 
     /// Add a character device to the parcel
-    pub fn add_char(&mut self, attrs: InodeAttr, xattrs: HashMap<OsString, Vec<u8>>) -> u64 {
+    pub fn add_char(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
@@ -408,7 +408,7 @@ impl Parcel {
     }
 
     /// Get the extended attributes of an inode
-    pub fn getxattrs(&self, ino: u64) -> Option<HashMap<OsString, Vec<u8>>> {
+    pub fn getxattrs(&self, ino: u64) -> Option<BTreeMap<OsString, Vec<u8>>> {
         Some(self.inodes.get(&ino)?.xattrs.clone())
     }
 }

@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     ffi::OsString,
     os::linux::fs::MetadataExt,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -79,7 +79,7 @@ pub struct Inode {
     /// The inode's attributes
     pub attrs:  InodeAttr,
     /// The inode's extended attributes
-    pub xattrs: HashMap<OsString, Vec<u8>>,
+    pub xattrs: BTreeMap<OsString, Vec<u8>>,
 }
 
 /// Describes how to find the contents of the file in the data section
@@ -95,7 +95,7 @@ pub struct FileReference {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum InodeContent {
     /// A directory is a map of names to inode IDs
-    Directory(HashMap<String, u64>),
+    Directory(BTreeMap<String, u64>),
     /// A file is a pointer to an offset+length
     RegularFile(FileReference),
     /// A symlink is a string describing the link target
