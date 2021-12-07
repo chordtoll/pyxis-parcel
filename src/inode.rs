@@ -34,8 +34,8 @@ impl InodeAttr {
     pub fn from_meta(meta: &dyn MetadataExt) -> InodeAttr {
         InodeAttr {
             atime: UNIX_EPOCH + Duration::new(meta.st_atime() as u64, meta.st_atime_nsec() as u32),
-            ctime: UNIX_EPOCH + Duration::new(meta.st_atime() as u64, meta.st_atime_nsec() as u32),
-            mtime: UNIX_EPOCH + Duration::new(meta.st_atime() as u64, meta.st_atime_nsec() as u32),
+            ctime: UNIX_EPOCH + Duration::new(meta.st_ctime() as u64, meta.st_ctime_nsec() as u32),
+            mtime: UNIX_EPOCH + Duration::new(meta.st_mtime() as u64, meta.st_mtime_nsec() as u32),
             uid:   meta.st_uid(),
             gid:   meta.st_gid(),
             nlink: 1,
