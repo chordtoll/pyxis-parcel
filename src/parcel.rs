@@ -8,6 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Result;
 use fuser::{FileAttr, FileType};
 use lexiclean::Lexiclean;
 use serde::{Deserialize, Serialize};
@@ -15,7 +16,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::ParcelError,
     inode::{FileReference, Inode, InodeAttr, InodeContent, InodeKind},
-    PARCEL_VERSION, ROOT_ATTRS, metadata::ParcelMetadata,
+    metadata::ParcelMetadata,
+    PARCEL_VERSION, ROOT_ATTRS,
 };
 
 /// Temporarily holds a file we want to add to the parcel
@@ -30,26 +32,20 @@ pub enum FileAdd {
 /// A parcel is an archive format holding a directory structure
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Parcel {
-    version:     u32,
-    root_inode:  u64,
+    version:      u32,
+    root_inode:   u64,
     /// The parcel's package metadata
     pub metadata: ParcelMetadata,
-    inodes:      BTreeMap<u64, Inode>,
-    content:     BTreeMap<u64, InodeContent>,
+    inodes:       BTreeMap<u64, Inode>,
+    content:      BTreeMap<u64, InodeContent>,
     #[serde(skip)]
-    file_offset: Option<u64>,
+    file_offset:  Option<u64>,
     #[serde(skip)]
-    next_inode:  u64,
+    next_inode:   u64,
     #[serde(skip)]
-    next_offset: u64,
+    next_offset:  u64,
     #[serde(skip)]
-    to_add:      BTreeMap<u64, FileAdd>,
-}
-
-impl Default for Parcel {
-    fn default() -> Self {
-        Self::new()
-    }
+    to_add:       BTreeMap<u64, FileAdd>,
 }
 
 impl Parcel {
@@ -58,7 +54,7 @@ impl Parcel {
         let mut parcel = Parcel {
             version:     PARCEL_VERSION,
             root_inode:  1,
-            metadata: ParcelMetadata::new(),
+            metadata:    ParcelMetadata::new(),
             inodes:      BTreeMap::new(),
             content:     BTreeMap::new(),
             file_offset: None,
@@ -85,7 +81,7 @@ impl Parcel {
     }
 
     /// Load a parcel from disk
-    pub fn load<R: BufRead + Seek>(input: &mut R) -> Result<Parcel, ParcelError> {
+    pub fn load<R: BufRead + Seek>(input: &mut R) -> Result<Parcel> {
         let mut res: Parcel;
 
         let mut magic: [u8; 4] = [0; 4];
@@ -113,13 +109,17 @@ impl Parcel {
             _ => panic!("Unknown magic: {:?}", magic),
         }
         if res.version != PARCEL_VERSION {
-            return Err(ParcelError::VersionMismatch);
+            return Err(ParcelError::VersionMismatch {
+                expected: PARCEL_VERSION,
+                found:    res.version,
+            }
+            .into());
         }
         Ok(res)
     }
 
     /// Write a parcel out to disk
-    pub fn store<W: Write + Seek>(&self, mut output: W) -> Result<(), ParcelError> {
+    pub fn store<W: Write + Seek>(&self, mut output: W) -> Result<()> {
         output.write_all(b"413\n")?;
         serde_yaml::to_writer(&mut output, self)?;
         output.write_all(b"\n...\n")?;
@@ -148,7 +148,7 @@ impl Parcel {
         from: FileAdd,
         attrs: InodeAttr,
         xattrs: BTreeMap<OsString, Vec<u8>>,
-    ) -> Result<u64, ParcelError> {
+    ) -> Result<u64> {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
@@ -210,7 +210,7 @@ impl Parcel {
         target: OsString,
         attrs: InodeAttr,
         xattrs: BTreeMap<OsString, Vec<u8>>,
-    ) -> Result<u64, ParcelError> {
+    ) -> Result<u64> {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
@@ -238,9 +238,9 @@ impl Parcel {
     }
 
     /// Add a hard link to an existing path in the parcel
-    pub fn add_hardlink(&mut self, target: OsString) -> Result<u64, ParcelError> {
+    pub fn add_hardlink(&mut self, target: OsString) -> Result<u64> {
         self.select(PathBuf::from(target))
-            .ok_or(ParcelError::Enoent)
+            .ok_or_else(|| ParcelError::Enoent.into())
     }
 
     /// Add a character device to the parcel
@@ -266,12 +266,7 @@ impl Parcel {
     }
 
     /// Insert an entry to a directory mapping a filename to an inode
-    pub fn insert_dirent(
-        &mut self,
-        parent: u64,
-        name: OsString,
-        child: u64,
-    ) -> Result<(), ParcelError> {
+    pub fn insert_dirent(&mut self, parent: u64, name: OsString, child: u64) -> Result<()> {
         match self.content.get_mut(&parent).unwrap() {
             InodeContent::Directory(dir) => dir.insert(
                 name.into_string().or(Err(ParcelError::StringConversion))?,
@@ -311,10 +306,10 @@ impl Parcel {
         ino: u64,
         offset: u64,
         size: Option<u64>,
-    ) -> Result<Vec<u8>, ParcelError> {
+    ) -> Result<Vec<u8>> {
         let file = match self.content.get(&ino).ok_or(ParcelError::Enoent)? {
             InodeContent::RegularFile(f) => f,
-            _ => return Err(ParcelError::NotFile),
+            _ => return Err(ParcelError::NotFile.into()),
         };
         reader.seek(SeekFrom::Start(
             self.file_offset

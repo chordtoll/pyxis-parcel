@@ -21,3 +21,5 @@ xattr = "0.2.2"
 fork = "0.1.18"
 global = "0.4.3"
 libc = "0.2.108"
+anyhow = { version="1.0.51", features = ["backtrace"]}
+thiserror = "1.0.30"

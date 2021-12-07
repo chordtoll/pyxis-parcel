@@ -1,22 +1,18 @@
+use thiserror::Error;
+
 /// An error enum for return from parcel methods that may fail
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum ParcelError {
-    IO(std::io::Error),
-    Yaml(serde_yaml::Error),
+    /// Cannot convert a string to/from unicode
+    #[error("String conversion Error")]
     StringConversion,
+    /// Requesting an object that doesn't exist
+    #[error("Requested object does not exist")]
     Enoent,
+    /// Trying to read from an object that's not a file
+    #[error("Requested object not a file")]
     NotFile,
-    VersionMismatch
-}
-
-impl From<std::io::Error> for ParcelError {
-    fn from(e: std::io::Error) -> Self {
-        Self::IO(e)
-    }
-}
-
-impl From<serde_yaml::Error> for ParcelError {
-    fn from(e: serde_yaml::Error) -> Self {
-        Self::Yaml(e)
-    }
+    /// Trying to load a parcel created with a different format version
+    #[error("Version Mismatch (expected {expected:?}, got {found:?})")]
+    VersionMismatch { expected: u32, found: u32 },
 }

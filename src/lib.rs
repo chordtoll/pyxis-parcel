@@ -6,6 +6,7 @@
 
 use std::time::UNIX_EPOCH;
 
+pub use error::ParcelError;
 pub use inode::{InodeAttr, InodeKind};
 pub use parcel::{FileAdd, Parcel};
 
@@ -13,10 +14,10 @@ pub use parcel::{FileAdd, Parcel};
 mod error;
 /// Inodes and utilities for representing items within a parcel.
 mod inode;
-/// The parcel container. Classes and methods.
-mod parcel;
 /// Parcel metadata for the package manager
 mod metadata;
+/// The parcel container. Classes and methods.
+mod parcel;
 
 const PARCEL_VERSION: u32 = 1;
 

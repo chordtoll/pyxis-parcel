@@ -10,7 +10,7 @@ pub struct ParcelMetadata {
 impl ParcelMetadata {
     /// Creates a new empty metadata
     pub fn new() -> Self {
-        Self{
+        Self {
             version: String::new(),
             depends: Vec::new(),
         }
