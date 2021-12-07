@@ -13,7 +13,7 @@ arch = ["x86_64"]
 [dependencies]
 clap = "2.34.0"
 walkdir = "2.3.2"
-fuser = "0.9.1"
+fuser = { version = "0.9.1", optional = true }
 serde_yaml = "0.8.21"
 serde =  { version = "1.0.130", features = ["derive"] }
 lexiclean = "0.0.1"
@@ -23,3 +23,10 @@ global = "0.4.3"
 libc = "0.2.108"
 anyhow = { version="1.0.51", features = ["backtrace"]}
 thiserror = "1.0.30"
+
+[features]
+fuse = ["fuser"]
+
+[[bin]]
+name = "parcel-mount"
+required-features = ["fuse"]

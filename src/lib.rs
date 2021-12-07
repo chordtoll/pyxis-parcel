@@ -7,7 +7,7 @@
 use std::time::UNIX_EPOCH;
 
 pub use error::ParcelError;
-pub use inode::{InodeAttr, InodeKind};
+pub use inode::{FileAttr, InodeAttr, InodeKind};
 pub use parcel::{FileAdd, Parcel};
 
 /// Error codes

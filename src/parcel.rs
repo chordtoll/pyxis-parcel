@@ -9,13 +9,12 @@ use std::{
 };
 
 use anyhow::Result;
-use fuser::{FileAttr, FileType};
 use lexiclean::Lexiclean;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     error::ParcelError,
-    inode::{FileReference, Inode, InodeAttr, InodeContent, InodeKind},
+    inode::{FileAttr, FileReference, Inode, InodeAttr, InodeContent, InodeKind},
     metadata::ParcelMetadata,
     PARCEL_VERSION, ROOT_ATTRS,
 };
@@ -252,7 +251,7 @@ impl Parcel {
         self.inodes.insert(
             self.next_inode,
             Inode {
-                kind: InodeKind::Char,
+                kind: InodeKind::CharDevice,
                 parent: 0,
                 attrs,
                 xattrs,
@@ -338,10 +337,10 @@ impl Parcel {
             InodeContent::Char(_) => 0,
         };
         let kind = match content {
-            InodeContent::RegularFile(_) => FileType::RegularFile,
-            InodeContent::Directory(_) => FileType::Directory,
-            InodeContent::Symlink(_) => FileType::Symlink,
-            InodeContent::Char(_) => FileType::CharDevice,
+            InodeContent::RegularFile(_) => InodeKind::RegularFile,
+            InodeContent::Directory(_) => InodeKind::Directory,
+            InodeContent::Symlink(_) => InodeKind::Symlink,
+            InodeContent::Char(_) => InodeKind::CharDevice,
         };
         Some(FileAttr {
             atime: attrs.atime,
@@ -375,7 +374,7 @@ impl Parcel {
                 InodeContent::RegularFile(_) => InodeKind::RegularFile,
                 InodeContent::Directory(_) => InodeKind::Directory,
                 InodeContent::Symlink(_) => InodeKind::Symlink,
-                InodeContent::Char(_) => InodeKind::Char,
+                InodeContent::Char(_) => InodeKind::CharDevice,
             };
             res.push((*v, kind, k.to_string()))
         }

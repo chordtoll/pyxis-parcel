@@ -14,5 +14,6 @@ pub enum ParcelError {
     NotFile,
     /// Trying to load a parcel created with a different format version
     #[error("Version Mismatch (expected {expected:?}, got {found:?})")]
+    #[allow(missing_docs)]
     VersionMismatch { expected: u32, found: u32 },
 }

@@ -5,7 +5,25 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use fuser::FileType;
+#[allow(missing_docs)]
+pub struct FileAttr {
+    pub atime:   SystemTime,
+    pub mtime:   SystemTime,
+    pub ctime:   SystemTime,
+    pub crtime:  SystemTime,
+    pub blocks:  u64,
+    pub blksize: u32,
+    pub gid:     u32,
+    pub uid:     u32,
+    pub ino:     u64,
+    pub nlink:   u32,
+    pub perm:    u16,
+    pub rdev:    u32,
+    pub size:    u64,
+    pub kind:    InodeKind,
+    pub flags:   u32,
+}
+
 use serde::{Deserialize, Serialize};
 
 /// Contains the attributes of the inode
@@ -55,18 +73,7 @@ pub enum InodeKind {
     /// A symlink
     Symlink,
     /// A character device
-    Char,
-}
-
-impl From<InodeKind> for FileType {
-    fn from(item: InodeKind) -> Self {
-        match item {
-            InodeKind::Directory => FileType::Directory,
-            InodeKind::RegularFile => FileType::RegularFile,
-            InodeKind::Symlink => FileType::Symlink,
-            InodeKind::Char => FileType::CharDevice,
-        }
-    }
+    CharDevice,
 }
 
 /// Holds the data for one object

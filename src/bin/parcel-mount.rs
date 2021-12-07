@@ -31,6 +31,35 @@ const TTL: Duration = Duration::from_secs(1);
 
 struct PyxisFS;
 
+fn filekind_pyxistofuse(v: pyxis_parcel::InodeKind) -> fuser::FileType {
+    match v {
+        InodeKind::RegularFile => fuser::FileType::RegularFile,
+        InodeKind::CharDevice => fuser::FileType::CharDevice,
+        InodeKind::Symlink => fuser::FileType::Symlink,
+        InodeKind::Directory => fuser::FileType::Directory,
+    }
+}
+
+fn fileattr_pyxistofuse(v: pyxis_parcel::FileAttr) -> fuser::FileAttr {
+    fuser::FileAttr {
+        atime:   v.atime,
+        mtime:   v.mtime,
+        ctime:   v.ctime,
+        crtime:  v.crtime,
+        blocks:  v.blocks,
+        blksize: v.blksize,
+        gid:     v.gid,
+        uid:     v.uid,
+        ino:     v.ino,
+        nlink:   v.nlink,
+        perm:    v.perm,
+        rdev:    v.rdev,
+        size:    v.size,
+        kind:    filekind_pyxistofuse(v.kind),
+        flags:   v.flags,
+    }
+}
+
 fn get_parent(ino: u64) -> Option<u64> {
     let parents = &PARENTS.lock().unwrap();
     Some(*parents.get(&ino)?)
@@ -118,7 +147,7 @@ impl Filesystem for PyxisFS {
         if let Some(r) = res {
             let attr = remap_attr(
                 pcid.unwrap() as u64,
-                r,
+                fileattr_pyxistofuse(r),
                 parent,
                 name.to_os_string().into_string().unwrap(),
             );
@@ -153,7 +182,7 @@ impl Filesystem for PyxisFS {
             attrs = parcel.getattr(inid).unwrap();
         }
         attrs.ino = ino;
-        reply.attr(&TTL, &attrs);
+        reply.attr(&TTL, &fileattr_pyxistofuse(attrs));
     }
     fn readdir(
         &mut self,
@@ -201,13 +230,8 @@ impl Filesystem for PyxisFS {
         for (i, entry) in dirents.into_iter().enumerate().skip(offset as usize) {
             let pid = entry.1 .0;
             if pid == u32::MAX {
-                let (a, b, c, d) = (
-                    entry.1 .1 .0,
-                    (i + 1) as i64,
-                    entry.1 .1 .1.into(),
-                    entry.1 .1 .2,
-                );
-                if reply.add(a, b, c, d) {
+                let (a, b, c, d) = (entry.1 .1 .0, (i + 1) as i64, entry.1 .1 .1, entry.1 .1 .2);
+                if reply.add(a, b, filekind_pyxistofuse(c), d) {
                     break;
                 }
             } else {
@@ -216,7 +240,7 @@ impl Filesystem for PyxisFS {
                     ino,
                     entry.1 .1 .0,
                     (i + 1) as i64,
-                    entry.1 .1 .1.into(),
+                    filekind_pyxistofuse(entry.1 .1 .1),
                     entry.1 .1 .2,
                 );
                 insert_parent(a, ino);
