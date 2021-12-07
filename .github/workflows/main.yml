@@ -18,6 +18,6 @@ jobs:
     - run: cargo install cargo-tarpaulin      
     - run: cargo clippy
     - run: cargo test
-    - run: cargo build --release --all-features  
+    - run: cargo build --release  
     - run: cargo tarpaulin --out Xml  
     - uses: codecov/codecov-action@v2
