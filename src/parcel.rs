@@ -47,6 +47,16 @@ pub struct Parcel {
     to_add:       BTreeMap<u64, FileAdd>,
 }
 
+fn get_parcel_version(buf: &[u8]) -> Result<u32> {
+    let contents: serde_yaml::Mapping = serde_yaml::from_slice(buf)?;
+    let version = contents.get(&serde_yaml::Value::String("version".to_string())).ok_or(ParcelError::NoVersion)?;
+    if let serde_yaml::Value::Number(ver) = version {
+        Ok(ver.as_u64().ok_or(ParcelError::VersionType)? as u32)
+    } else {
+        Err(ParcelError::VersionType.into())
+    }
+}
+
 impl Parcel {
     /// Create a new empty parcel
     pub fn new() -> Parcel {
@@ -102,17 +112,21 @@ impl Parcel {
                     }
                 }
                 buf.truncate(buf.len() - 5);
+
+                // We must first check the version, as the full deserialization will fail if fields have changed.
+                let ver = get_parcel_version(&buf)?;
+                if ver != PARCEL_VERSION {
+                    return Err(ParcelError::VersionMismatch {
+                        expected: PARCEL_VERSION,
+                        found:    ver,
+                    }
+                    .into());
+                }
+
                 res = serde_yaml::from_slice(&buf)?;
                 res.file_offset = Some(input.stream_position()?);
             }
             _ => panic!("Unknown magic: {:?}", magic),
-        }
-        if res.version != PARCEL_VERSION {
-            return Err(ParcelError::VersionMismatch {
-                expected: PARCEL_VERSION,
-                found:    res.version,
-            }
-            .into());
         }
         Ok(res)
     }
