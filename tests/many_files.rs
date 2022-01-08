@@ -46,7 +46,9 @@ fn many_file_roundtrip() {
             .take(length)
             .collect::<Vec<u8>>();
         let res = parcel.read(i + 2, 0, None).unwrap();
-        assert_eq!(String::from_utf8_lossy(&contents), String::from_utf8_lossy(&res));
+        assert_eq!(
+            String::from_utf8_lossy(&contents),
+            String::from_utf8_lossy(&res)
+        );
     }
-
 }

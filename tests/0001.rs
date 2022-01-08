@@ -1,6 +1,4 @@
-use std::{fs::File, path::PathBuf};
-
-use pyxis_parcel::{FileAdd, ParcelHandle, ReaderWriter};
+use pyxis_parcel::{FileAdd, ParcelHandle};
 
 mod common;
 use common::Fixture;
@@ -9,9 +7,7 @@ use common::Fixture;
 fn empty_serialize() {
     let f = Fixture::blank("test.parcel");
     let mut parcel = ParcelHandle::new();
-    parcel.set_file(Box::new(ReaderWriter::new(
-        File::create(PathBuf::from(&f)).unwrap(),
-    )));
+    parcel.set_file(f.make_rw());
     parcel.store().unwrap();
     f.compare("empty_serialize.parcel");
 }
@@ -20,9 +16,7 @@ fn empty_serialize() {
 fn add_file_string() {
     let f = Fixture::blank("test.parcel");
     let mut parcel = ParcelHandle::new();
-    parcel.set_file(Box::new(ReaderWriter::new(
-        File::create(PathBuf::from(&f)).unwrap(),
-    )));
+    parcel.set_file(f.make_rw());
     parcel
         .add_file(
             FileAdd::Bytes(b"foo".to_vec()),
@@ -38,9 +32,7 @@ fn add_file_string() {
 fn add_file_file() {
     let f = Fixture::blank("test.parcel");
     let mut parcel = ParcelHandle::new();
-    parcel.set_file(Box::new(ReaderWriter::new(
-        File::create(PathBuf::from(&f)).unwrap(),
-    )));
+    parcel.set_file(f.make_rw());
     parcel
         .add_file(
             FileAdd::Name("tests/data/foo".into()),
@@ -56,9 +48,7 @@ fn add_file_file() {
 fn insert_file_dirent() {
     let f = Fixture::blank("test.parcel");
     let mut parcel = ParcelHandle::new();
-    parcel.set_file(Box::new(ReaderWriter::new(
-        File::create(PathBuf::from(&f)).unwrap(),
-    )));
+    parcel.set_file(f.make_rw());
     let add = parcel
         .add_file(
             FileAdd::Bytes(b"foo".to_vec()),
@@ -75,9 +65,7 @@ fn insert_file_dirent() {
 fn add_dir() {
     let f = Fixture::blank("test.parcel");
     let mut parcel = ParcelHandle::new();
-    parcel.set_file(Box::new(ReaderWriter::new(
-        File::create(PathBuf::from(&f)).unwrap(),
-    )));
+    parcel.set_file(f.make_rw());
     parcel.add_directory(Default::default(), Default::default());
     parcel.store().unwrap();
     f.compare("add_dir.parcel");
@@ -87,9 +75,7 @@ fn add_dir() {
 fn insert_dir_dirent() {
     let f = Fixture::blank("test.parcel");
     let mut parcel = ParcelHandle::new();
-    parcel.set_file(Box::new(ReaderWriter::new(
-        File::create(PathBuf::from(&f)).unwrap(),
-    )));
+    parcel.set_file(f.make_rw());
     let add = parcel.add_directory(Default::default(), Default::default());
     parcel.insert_dirent(1, "foo".into(), add).unwrap();
     parcel.store().unwrap();
@@ -100,9 +86,7 @@ fn insert_dir_dirent() {
 fn add_multiple_files() {
     let f = Fixture::blank("test.parcel");
     let mut parcel = ParcelHandle::new();
-    parcel.set_file(Box::new(ReaderWriter::new(
-        File::create(PathBuf::from(&f)).unwrap(),
-    )));
+    parcel.set_file(f.make_rw());
     parcel
         .add_file(
             FileAdd::Bytes(b"foo".to_vec()),
@@ -133,9 +117,7 @@ fn add_multiple_files() {
 fn add_read_no_flush() {
     let f = Fixture::blank("test.parcel");
     let mut parcel = ParcelHandle::new();
-    parcel.set_file(Box::new(ReaderWriter::new(
-        File::create(PathBuf::from(&f)).unwrap(),
-    )));
+    parcel.set_file(f.make_rw());
     parcel.store().unwrap();
     let ino = parcel
         .add_file(
@@ -144,5 +126,22 @@ fn add_read_no_flush() {
             Default::default(),
         )
         .unwrap();
+    parcel.read(ino, 0, None).unwrap();
+}
+
+#[test]
+fn add_read_flush() {
+    let f = Fixture::blank("test.parcel");
+    let mut parcel = ParcelHandle::new();
+    parcel.set_file(f.make_rw());
+    parcel.store().unwrap();
+    let ino = parcel
+        .add_file(
+            FileAdd::Bytes(b"foo".to_vec()),
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+    parcel.store().unwrap();
     parcel.read(ino, 0, None).unwrap();
 }

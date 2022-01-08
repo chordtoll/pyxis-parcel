@@ -270,6 +270,7 @@ impl Parcel {
             }
         }
         self.on_disk = true;
+        self.file_offset = Some(file_offset);
         Ok(())
     }
 

@@ -1,10 +1,15 @@
-use std::{env, fs, path::PathBuf};
+use std::{
+    env,
+    fs::{self, File},
+    path::PathBuf,
+};
 
 use pretty_assertions::assert_eq;
+use pyxis_parcel::ReaderWriter;
 use tempfile::TempDir;
 pub struct Fixture {
     path:     PathBuf,
-    _source:   PathBuf,
+    _source:  PathBuf,
     _tempdir: TempDir,
 }
 
@@ -28,8 +33,25 @@ impl Fixture {
         }
     }
 
+    pub fn make_rw(&self) -> Box<ReaderWriter> {
+        let f = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(PathBuf::from(self))
+            .unwrap();
+
+        Box::new(ReaderWriter::new(f))
+    }
+
+    //pub fn copy(fixture_filename: &str) -> Self {
+    //    let fixture = Fixture::blank(fixture_filename);
+    //    fs::copy(&fixture.source, &fixture.path).unwrap();
+    //    fixture
+    //}
+
     pub fn compare(&self, expected: &str) {
-        let _ = fs::copy(PathBuf::from(self),"found.parcel");
+        let _ = fs::copy(PathBuf::from(self), "found.parcel");
         let ex_b = fs::read(String::from("tests/data/expected/") + expected).unwrap();
         let fd_b = fs::read(PathBuf::from(self)).unwrap();
         let expected = String::from_utf8(ex_b.clone())
@@ -55,10 +77,10 @@ impl Fixture {
 
         assert_eq!(expected, found);
 
-        let ex_d_idx = twoway::find_bytes(&ex_b,b"\n...\n").unwrap()+5;
-        let fd_d_idx = twoway::find_bytes(&fd_b,b"\n...\n").unwrap()+5;
+        let ex_d_idx = twoway::find_bytes(&ex_b, b"\n...\n").unwrap() + 5;
+        let fd_d_idx = twoway::find_bytes(&fd_b, b"\n...\n").unwrap() + 5;
 
-        assert_eq!(ex_b[ex_d_idx..],fd_b[fd_d_idx..]);
+        assert_eq!(ex_b[ex_d_idx..], fd_b[fd_d_idx..]);
     }
 }
 
