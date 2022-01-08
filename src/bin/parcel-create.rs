@@ -17,23 +17,23 @@ fn main() {
         .author("chordtoll <git@chordtoll.com>")
         .about("Creates parcel archive files for the pyxis package manager")
         .arg(
-            Arg::with_name("version")
+            Arg::new("version")
                 .takes_value(true)
                 .long("version")
                 .required(true),
         )
         .arg(
-            Arg::with_name("output")
+            Arg::new("output")
                 .value_name("OUTPUT")
                 .help("The output parcel to generate")
                 .takes_value(true)
                 .required(true),
         )
         .arg(
-            Arg::with_name("input")
+            Arg::new("input")
                 .value_name("INPUT")
                 .help("The input directory to scan")
-                .multiple(true)
+                .multiple_occurrences(true)
                 .takes_value(true)
                 .required(true),
         )
