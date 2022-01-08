@@ -1,12 +1,7 @@
-use std::{
-    fs::File,
-    io,
-    io::{BufReader, Write},
-    path::PathBuf,
-};
+use std::{fs::File, io, io::Write, path::PathBuf};
 
 use clap::{App, Arg};
-use pyxis_parcel::Parcel;
+use pyxis_parcel::{ParcelHandle, ReaderWriter};
 
 fn main() {
     let matches = App::new("Parcel-Cat")
@@ -30,15 +25,15 @@ fn main() {
         .get_matches();
 
     let f = File::open(matches.value_of("parcel").unwrap()).unwrap();
-    let mut reader = BufReader::new(f);
+    let readerwriter = ReaderWriter::new(f);
 
-    let parcel: Parcel = Parcel::load(&mut reader).unwrap();
+    let mut parcel: ParcelHandle = ParcelHandle::load(Box::new(readerwriter)).unwrap();
 
     let ino = parcel
         .select(PathBuf::from(matches.value_of("path").unwrap()))
         .unwrap();
 
     io::stdout()
-        .write_all(&parcel.read(&mut reader, ino, 0, None).unwrap())
+        .write_all(&parcel.read(ino, 0, None).unwrap())
         .unwrap();
 }

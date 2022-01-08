@@ -2,6 +2,7 @@ use std::{
     cmp::{max, min},
     collections::BTreeMap,
     ffi::OsString,
+    fmt::Debug,
     fs,
     fs::File,
     io::{self, BufRead, Read, Seek, SeekFrom, Write},
@@ -28,9 +29,122 @@ pub enum FileAdd {
     Name(OsString),
 }
 
-/// A parcel is an archive format holding a directory structure
+pub trait FileBacking: BufRead + Write + Seek {}
+
+impl Debug for dyn FileBacking {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("File Backing")
+    }
+}
+
+/// A parcel is an archive format holding a directory structure.
+/// We use a handle to hold both the parcel's data and the backing file.
+pub struct ParcelHandle {
+    parcel:  Parcel,
+    backing: Option<Box<dyn FileBacking>>,
+}
+
+impl ParcelHandle {
+    /// Create a new empty parcel
+    pub fn new() -> Self {
+        Self {
+            parcel:  Parcel::new(),
+            backing: None,
+        }
+    }
+    /// Set the handle's backing file
+    pub fn set_file(&mut self, f: Box<dyn FileBacking>) {
+        self.backing = Some(f)
+    }
+
+    /// Load a parcel from disk
+    pub fn load(mut f: Box<dyn FileBacking>) -> Result<Self> {
+        Ok(Self {
+            parcel:  Parcel::load(&mut f)?,
+            backing: Some(f),
+        })
+    }
+    /// Write a parcel out to disk
+    pub fn store(&mut self) -> Result<()> {
+        self.parcel.store(
+            self.backing
+                .as_mut()
+                .expect("Writing parcel with no backing file"),
+        )
+    }
+    /// Add a file to the parcel
+    pub fn add_file(
+        &mut self,
+        from: FileAdd,
+        attrs: InodeAttr,
+        xattrs: BTreeMap<OsString, Vec<u8>>,
+    ) -> Result<u64> {
+        self.parcel.add_file(from, attrs, xattrs)
+    }
+    /// Add a directory to the parcel
+    pub fn add_directory(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
+        self.parcel.add_directory(attrs, xattrs)
+    }
+    /// Add a symlink to the parcel
+    pub fn add_symlink(
+        &mut self,
+        target: OsString,
+        attrs: InodeAttr,
+        xattrs: BTreeMap<OsString, Vec<u8>>,
+    ) -> Result<u64> {
+        self.parcel.add_symlink(target, attrs, xattrs)
+    }
+    /// Add a hard link to an existing path in the parcel
+    pub fn add_hardlink(&mut self, target: OsString) -> Result<u64> {
+        self.parcel.add_hardlink(target)
+    }
+    /// Get the inode number for a path
+    pub fn select(&self, path: PathBuf) -> Option<u64> {
+        self.parcel.select(path)
+    }
+    /// Read the contents of a file
+    pub fn read(&mut self, ino: u64, offset: u64, size: Option<u64>) -> Result<Vec<u8>> {
+        self.parcel.read(
+            self.backing
+                .as_mut()
+                .expect("Reading from parcel with no backing file"),
+            ino,
+            offset,
+            size,
+        )
+    }
+    /// Add a character device to the parcel
+    pub fn add_char(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
+        self.parcel.add_char(attrs, xattrs)
+    }
+    /// Insert an entry to a directory mapping a filename to an inode
+    pub fn insert_dirent(&mut self, parent: u64, name: OsString, child: u64) -> Result<()> {
+        self.parcel.insert_dirent(parent, name, child)
+    }
+    /// Get the attributes of an inode
+    pub fn getattr(&self, ino: u64) -> Option<FileAttr> {
+        self.parcel.getattr(ino)
+    }
+    /// Read the contents of a directory
+    pub fn readdir(&self, ino: u64) -> Option<Vec<(u64, InodeKind, String)>> {
+        self.parcel.readdir(ino)
+    }
+    /// Get the inode number of an object by name within a directory
+    pub fn lookup(&self, parent: u64, name: String) -> Option<u64> {
+        self.parcel.lookup(parent, name)
+    }
+    /// Get the target of a symlink
+    pub fn readlink(&self, ino: u64) -> Option<Vec<u8>> {
+        self.parcel.readlink(ino)
+    }
+    /// Get the extended attributes of an inode
+    pub fn getxattrs(&self, ino: u64) -> Option<BTreeMap<OsString, Vec<u8>>> {
+        self.parcel.getxattrs(ino)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Parcel {
+struct Parcel {
     version:      u32,
     root_inode:   u64,
     /// The parcel's package metadata
@@ -62,8 +176,7 @@ fn get_parcel_version(buf: &[u8]) -> Result<u32> {
 }
 
 impl Parcel {
-    /// Create a new empty parcel
-    pub fn new() -> Parcel {
+    fn new() -> Parcel {
         let mut parcel = Parcel {
             version:     PARCEL_VERSION,
             root_inode:  1,
@@ -94,8 +207,7 @@ impl Parcel {
         parcel
     }
 
-    /// Load a parcel from disk
-    pub fn load<R: BufRead + Seek>(input: &mut R) -> Result<Parcel> {
+    fn load<R: BufRead + Seek>(input: &mut R) -> Result<Parcel> {
         let mut res: Parcel;
 
         let mut magic: [u8; 4] = [0; 4];
@@ -137,8 +249,7 @@ impl Parcel {
         Ok(res)
     }
 
-    /// Write a parcel out to disk
-    pub fn store<W: Write + Seek>(&mut self, mut output: W) -> Result<()> {
+    fn store<W: Write + Seek>(&mut self, mut output: W) -> Result<()> {
         output.write_all(b"413\n")?;
         serde_yaml::to_writer(&mut output, self)?;
         output.write_all(b"\n...\n")?;
@@ -162,8 +273,7 @@ impl Parcel {
         Ok(())
     }
 
-    /// Add a file to the parcel
-    pub fn add_file(
+    fn add_file(
         &mut self,
         from: FileAdd,
         attrs: InodeAttr,
@@ -203,8 +313,7 @@ impl Parcel {
         Ok(self.next_inode - 1)
     }
 
-    /// Add a directory to the parcel
-    pub fn add_directory(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
+    fn add_directory(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
@@ -225,8 +334,7 @@ impl Parcel {
         self.next_inode - 1
     }
 
-    /// Add a symlink to the parcel
-    pub fn add_symlink(
+    fn add_symlink(
         &mut self,
         target: OsString,
         attrs: InodeAttr,
@@ -258,14 +366,12 @@ impl Parcel {
         Ok(self.next_inode - 1)
     }
 
-    /// Add a hard link to an existing path in the parcel
-    pub fn add_hardlink(&mut self, target: OsString) -> Result<u64> {
+    fn add_hardlink(&mut self, target: OsString) -> Result<u64> {
         self.select(PathBuf::from(target))
             .ok_or_else(|| ParcelError::Enoent.into())
     }
 
-    /// Add a character device to the parcel
-    pub fn add_char(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
+    fn add_char(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
         while self.inodes.contains_key(&self.next_inode) {
             self.next_inode += 1;
         }
@@ -286,8 +392,7 @@ impl Parcel {
         self.next_inode - 1
     }
 
-    /// Insert an entry to a directory mapping a filename to an inode
-    pub fn insert_dirent(&mut self, parent: u64, name: OsString, child: u64) -> Result<()> {
+    fn insert_dirent(&mut self, parent: u64, name: OsString, child: u64) -> Result<()> {
         match self.content.get_mut(&parent).unwrap() {
             InodeContent::Directory(dir) => dir.insert(
                 name.into_string().or(Err(ParcelError::StringConversion))?,
@@ -300,8 +405,7 @@ impl Parcel {
         Ok(())
     }
 
-    /// Get the inode number for a path
-    pub fn select(&self, path: PathBuf) -> Option<u64> {
+    fn select(&self, path: PathBuf) -> Option<u64> {
         let path = match path.has_root() {
             true => path,
             false => Path::new("/").join(path),
@@ -320,15 +424,17 @@ impl Parcel {
         ino
     }
 
-    /// Read the contents of a file
-    pub fn read<R: Read + Seek>(
+    fn read<R: Read + Seek>(
         &self,
         reader: &mut R,
         ino: u64,
         offset: u64,
         size: Option<u64>,
     ) -> Result<Vec<u8>> {
-        assert!(self.on_disk,"Parcel is not on disk, cannot read without flushing");
+        assert!(
+            self.on_disk,
+            "Parcel is not on disk, cannot read without flushing"
+        );
         let file = match self.content.get(&ino).ok_or(ParcelError::Enoent)? {
             InodeContent::RegularFile(f) => f,
             _ => return Err(ParcelError::NotFile.into()),
@@ -348,8 +454,7 @@ impl Parcel {
         Ok(buf)
     }
 
-    /// Get the attributes of an inode
-    pub fn getattr(&self, ino: u64) -> Option<FileAttr> {
+    fn getattr(&self, ino: u64) -> Option<FileAttr> {
         let inode = self.inodes.get(&ino)?;
         let attrs = inode.attrs;
         let content = self.content.get(&ino)?;
@@ -384,8 +489,7 @@ impl Parcel {
         })
     }
 
-    /// Read the contents of a directory
-    pub fn readdir(&self, ino: u64) -> Option<Vec<(u64, InodeKind, String)>> {
+    fn readdir(&self, ino: u64) -> Option<Vec<(u64, InodeKind, String)>> {
         let mut res: Vec<(u64, InodeKind, String)> = Vec::new();
 
         let content = match self.content.get(&ino)? {
@@ -404,8 +508,7 @@ impl Parcel {
         Some(res)
     }
 
-    /// Get the inode number of an object by name within a directory
-    pub fn lookup(&self, parent: u64, name: String) -> Option<u64> {
+    fn lookup(&self, parent: u64, name: String) -> Option<u64> {
         let content = match self.content.get(&parent)? {
             InodeContent::Directory(d) => d,
             _ => return None,
@@ -418,8 +521,7 @@ impl Parcel {
         None
     }
 
-    /// Get the target of a symlink
-    pub fn readlink(&self, ino: u64) -> Option<Vec<u8>> {
+    fn readlink(&self, ino: u64) -> Option<Vec<u8>> {
         let content = self.content.get(&ino)?;
         match content {
             InodeContent::Symlink(s) => Some(s.as_bytes().to_vec()),
@@ -427,8 +529,7 @@ impl Parcel {
         }
     }
 
-    /// Get the extended attributes of an inode
-    pub fn getxattrs(&self, ino: u64) -> Option<BTreeMap<OsString, Vec<u8>>> {
+    fn getxattrs(&self, ino: u64) -> Option<BTreeMap<OsString, Vec<u8>>> {
         Some(self.inodes.get(&ino)?.xattrs.clone())
     }
 }

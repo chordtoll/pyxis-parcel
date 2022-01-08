@@ -4,7 +4,7 @@ use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 pub struct Fixture {
     path:     PathBuf,
-    source:   PathBuf,
+    _source:   PathBuf,
     _tempdir: TempDir,
 }
 
@@ -23,20 +23,21 @@ impl Fixture {
 
         Fixture {
             _tempdir: tempdir,
-            source,
+            _source: source,
             path,
         }
     }
 
     pub fn compare(&self, expected: &str) {
+        let _ = fs::copy(PathBuf::from(self),"found.parcel");
         let ex_b = fs::read(String::from("tests/data/expected/") + expected).unwrap();
         let fd_b = fs::read(PathBuf::from(self)).unwrap();
-        let expected = String::from_utf8(ex_b)
+        let expected = String::from_utf8(ex_b.clone())
             .unwrap()
             .split('\n')
             .map(|s| s.to_owned())
             .collect::<Vec<String>>();
-        let found = String::from_utf8(fd_b)
+        let found = String::from_utf8(fd_b.clone())
             .unwrap()
             .split('\n')
             .map(|s| s.to_owned())
@@ -53,6 +54,11 @@ impl Fixture {
         };
 
         assert_eq!(expected, found);
+
+        let ex_d_idx = twoway::find_bytes(&ex_b,b"\n...\n").unwrap()+5;
+        let fd_d_idx = twoway::find_bytes(&fd_b,b"\n...\n").unwrap()+5;
+
+        assert_eq!(ex_b[ex_d_idx..],fd_b[fd_d_idx..]);
     }
 }
 

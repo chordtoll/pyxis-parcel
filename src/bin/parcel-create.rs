@@ -8,7 +8,7 @@ use std::{
 };
 
 use clap::{App, Arg};
-use pyxis_parcel::{FileAdd, InodeAttr, Parcel};
+use pyxis_parcel::{FileAdd, InodeAttr, ParcelHandle, ReaderWriter};
 use walkdir::WalkDir;
 
 fn main() {
@@ -16,12 +16,6 @@ fn main() {
         .version("0.1.0")
         .author("chordtoll <git@chordtoll.com>")
         .about("Creates parcel archive files for the pyxis package manager")
-        .arg(
-            Arg::new("version")
-                .takes_value(true)
-                .long("version")
-                .required(true),
-        )
         .arg(
             Arg::new("output")
                 .value_name("OUTPUT")
@@ -39,9 +33,7 @@ fn main() {
         )
         .get_matches();
 
-    let mut parcel: Parcel = Parcel::new();
-
-    parcel.metadata.version = matches.value_of("version").unwrap().to_owned();
+    let mut parcel: ParcelHandle = ParcelHandle::new();
 
     let mut dir_map: BTreeMap<PathBuf, u64> = BTreeMap::new();
     dir_map.insert(PathBuf::from("/"), 1);
@@ -140,5 +132,6 @@ fn main() {
     }
 
     let outfile = File::create(matches.value_of("output").unwrap()).unwrap();
-    parcel.store(outfile).unwrap();
+    parcel.set_file(Box::new(ReaderWriter::new(outfile)));
+    parcel.store().unwrap();
 }

@@ -1,3 +1,7 @@
+#![feature(new_uninit)]
+#![feature(read_buf)]
+#![feature(maybe_uninit_slice)]
+
 #![warn(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![allow(clippy::new_without_default)]
@@ -8,7 +12,7 @@ use std::time::UNIX_EPOCH;
 
 pub use error::ParcelError;
 pub use inode::{FileAttr, InodeAttr, InodeKind};
-pub use parcel::{FileAdd, Parcel};
+pub use parcel::{FileAdd, ParcelHandle};
 
 /// Error codes
 mod error;
@@ -18,6 +22,10 @@ mod inode;
 mod metadata;
 /// The parcel container. Classes and methods.
 mod parcel;
+
+mod reader_writer;
+
+pub use reader_writer::ReaderWriter;
 
 const PARCEL_VERSION: u32 = 1;
 
