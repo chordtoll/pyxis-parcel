@@ -45,6 +45,8 @@ pub struct Parcel {
     next_offset:  u64,
     #[serde(skip)]
     to_add:       BTreeMap<u64, FileAdd>,
+    #[serde(skip)]
+    on_disk:      bool,
 }
 
 fn get_parcel_version(buf: &[u8]) -> Result<u32> {
@@ -72,6 +74,7 @@ impl Parcel {
             next_inode:  1,
             next_offset: 0,
             to_add:      BTreeMap::new(),
+            on_disk:     false,
         };
 
         parcel.inodes.insert(
@@ -130,11 +133,12 @@ impl Parcel {
             }
             _ => panic!("Unknown magic: {:?}", magic),
         }
+        res.on_disk = true;
         Ok(res)
     }
 
     /// Write a parcel out to disk
-    pub fn store<W: Write + Seek>(&self, mut output: W) -> Result<()> {
+    pub fn store<W: Write + Seek>(&mut self, mut output: W) -> Result<()> {
         output.write_all(b"413\n")?;
         serde_yaml::to_writer(&mut output, self)?;
         output.write_all(b"\n...\n")?;
@@ -154,6 +158,7 @@ impl Parcel {
                 _ => panic!(),
             }
         }
+        self.on_disk = true;
         Ok(())
     }
 
@@ -194,6 +199,7 @@ impl Parcel {
         self.next_offset += filesize;
 
         self.next_inode += 1;
+        self.on_disk = false;
         Ok(self.next_inode - 1)
     }
 
@@ -322,6 +328,7 @@ impl Parcel {
         offset: u64,
         size: Option<u64>,
     ) -> Result<Vec<u8>> {
+        assert!(self.on_disk,"Parcel is not on disk, cannot read without flushing");
         let file = match self.content.get(&ino).ok_or(ParcelError::Enoent)? {
             InodeContent::RegularFile(f) => f,
             _ => return Err(ParcelError::NotFile.into()),
