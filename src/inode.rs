@@ -63,6 +63,21 @@ impl InodeAttr {
     }
 }
 
+impl Default for InodeAttr {
+    fn default() -> Self {
+        Self {
+            atime: UNIX_EPOCH,
+            ctime: UNIX_EPOCH,
+            mtime: UNIX_EPOCH,
+            uid:   0,
+            gid:   0,
+            nlink: 1,
+            perm:  0,
+            rdev:  0,
+        }
+    }
+}
+
 /// The type of the inode
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord)]
 pub enum InodeKind {

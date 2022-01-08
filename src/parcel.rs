@@ -49,7 +49,9 @@ pub struct Parcel {
 
 fn get_parcel_version(buf: &[u8]) -> Result<u32> {
     let contents: serde_yaml::Mapping = serde_yaml::from_slice(buf)?;
-    let version = contents.get(&serde_yaml::Value::String("version".to_string())).ok_or(ParcelError::NoVersion)?;
+    let version = contents
+        .get(&serde_yaml::Value::String("version".to_string()))
+        .ok_or(ParcelError::NoVersion)?;
     if let serde_yaml::Value::Number(ver) = version {
         Ok(ver.as_u64().ok_or(ParcelError::VersionType)? as u32)
     } else {
