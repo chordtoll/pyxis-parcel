@@ -1,7 +1,7 @@
 use std::{
     cmp,
     fs::File,
-    io::{self, BufRead, ReadBuf, Read, Seek, SeekFrom, Write},
+    io::{self, BufRead, Read, ReadBuf, Seek, SeekFrom, Write},
     mem::MaybeUninit,
 };
 
@@ -27,7 +27,7 @@ impl ReaderWriter {
             init: 0,
         }
     }
-    
+
     fn buffer(&self) -> &[u8] {
         unsafe { MaybeUninit::slice_assume_init_ref(&self.buf[self.pos..self.cap]) }
     }

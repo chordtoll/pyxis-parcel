@@ -1,7 +1,6 @@
 #![feature(new_uninit)]
 #![feature(read_buf)]
 #![feature(maybe_uninit_slice)]
-
 #![warn(missing_docs)]
 #![warn(clippy::unwrap_used)]
 #![allow(clippy::new_without_default)]

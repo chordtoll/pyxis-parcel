@@ -113,6 +113,17 @@ impl ParcelHandle {
             size,
         )
     }
+    /// Write to a file
+    pub fn write(&mut self, ino: u64, offset: u64, buf: &[u8]) -> Result<u64> {
+        self.parcel.write(
+            self.backing
+                .as_mut()
+                .expect("Writing to parcel with no backing file"),
+            ino,
+            offset,
+            buf,
+        )
+    }
     /// Add a character device to the parcel
     pub fn add_char(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
         self.parcel.add_char(attrs, xattrs)
@@ -453,6 +464,36 @@ impl Parcel {
         let mut buf = vec![0u8; size as usize];
         reader.read_exact(&mut buf)?;
         Ok(buf)
+    }
+
+    fn write<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        ino: u64,
+        offset: u64,
+        buf: &[u8],
+    ) -> Result<u64> {
+        assert!(
+            self.on_disk,
+            "Parcel is not on disk, cannot write without flushing"
+        );
+        let file = match self.content.get(&ino).ok_or(ParcelError::Enoent)? {
+            InodeContent::RegularFile(f) => f,
+            _ => return Err(ParcelError::NotFile.into()),
+        };
+        writer.seek(SeekFrom::Start(
+            self.file_offset
+                .expect("Parcel not properly loaded- no offset stored to data section")
+                + file.offset
+                + offset,
+        ))?;
+        let size = buf.len().try_into()?;
+        if size + offset > file.size {
+            Err(ParcelError::NeedExpansion.into())
+        } else {
+            writer.write_all(buf)?;
+            Ok(size)
+        }
     }
 
     fn getattr(&self, ino: u64) -> Option<FileAttr> {

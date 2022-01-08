@@ -22,4 +22,7 @@ pub enum ParcelError {
     #[error("Version Mismatch (expected {expected:?}, got {found:?})")]
     #[allow(missing_docs)]
     VersionMismatch { expected: u32, found: u32 },
+    /// Writing past the end of a file
+    #[error("Need to expand file before writing")]
+    NeedExpansion,
 }
