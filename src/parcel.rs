@@ -1,5 +1,5 @@
 use std::{
-    cmp::{max, min},
+    cmp::{max, min, Ordering},
     collections::BTreeMap,
     ffi::OsString,
     fmt::Debug,
@@ -257,14 +257,53 @@ impl Parcel {
             _ => panic!("Unknown magic: {:?}", magic),
         }
         res.on_disk = true;
+        res.next_inode = res
+            .inodes
+            .keys()
+            .max()
+            .expect("Loading parcel with no entries")
+            + 1;
+        res.next_offset = res
+            .content
+            .values()
+            .map(|x| {
+                if let InodeContent::RegularFile(f) = x {
+                    f.offset + f.size
+                } else {
+                    0
+                }
+            })
+            .max()
+            .expect("Loading parcel with no entries");
         Ok(res)
     }
 
-    fn store<W: Write + Seek>(&mut self, mut output: W) -> Result<()> {
+    fn store<W: Read + Write + Seek>(&mut self, mut output: W) -> Result<()> {
+
+        let buf = serde_yaml::to_vec(self)?;
+        let file_offset = (buf.len()+4+5) as u64;
+
+        if let Some(cur_file_offset) = self.file_offset {
+            match file_offset.cmp(&cur_file_offset) {
+                Ordering::Equal => {}
+                Ordering::Greater => {
+                    output.seek(SeekFrom::Start(cur_file_offset))?;
+                    let mut buf = Vec::new();
+                    output.read_to_end(&mut buf)?;
+                    output.seek(SeekFrom::Start(file_offset))?;
+                    output.write_all(&buf)?;
+                }
+                Ordering::Less => {todo!()}
+            }
+        }
+
+        output.seek(SeekFrom::Start(0))?;
         output.write_all(b"413\n")?;
         serde_yaml::to_writer(&mut output, self)?;
         output.write_all(b"\n...\n")?;
-        let file_offset = output.stream_position()?;
+
+        assert!(file_offset == output.stream_position()?);
+
         for (ino, val) in self.to_add.iter() {
             match &self.content[ino] {
                 InodeContent::RegularFile(file) => {
@@ -282,6 +321,7 @@ impl Parcel {
         }
         self.on_disk = true;
         self.file_offset = Some(file_offset);
+        output.flush()?;
         Ok(())
     }
 

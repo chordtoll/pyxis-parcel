@@ -1,0 +1,56 @@
+413
+---
+version: 1
+root_inode: 1
+metadata:
+  version: ""
+  depends: []
+inodes:
+  1:
+    kind: Directory
+    parent: 0
+    attrs:
+      atime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      mtime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      ctime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      perm: 493
+      nlink: 1
+      uid: 0
+      gid: 0
+      rdev: 0
+    xattrs: {}
+  2:
+    kind: RegularFile
+    parent: 0
+    attrs:
+      atime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      mtime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      ctime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      perm: 0
+      nlink: 1
+      uid: 0
+      gid: 0
+      rdev: 0
+    xattrs: {}
+content:
+  1:
+    Directory: {}
+  2:
+    RegularFile:
+      offset: 0
+      size: 3
+
+...
+bar

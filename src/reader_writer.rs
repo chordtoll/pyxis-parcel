@@ -94,6 +94,6 @@ impl Write for ReaderWriter {
 
     fn flush(&mut self) -> std::io::Result<()> {
         self.discard_buffer();
-        todo!()
+        self.file.flush()
     }
 }

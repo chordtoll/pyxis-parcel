@@ -111,3 +111,31 @@ fn add_multiple_files() {
     parcel.store().unwrap();
     f.compare("add_multiple_files.parcel");
 }
+
+#[test]
+fn add_reload_add() {
+    let f = Fixture::blank("test.parcel");
+    let mut parcel = ParcelHandle::new();
+    parcel.set_file(f.make_rw());
+    parcel
+        .add_file(
+            FileAdd::Bytes(b"foo".to_vec()),
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+    parcel.store().unwrap();
+    f.compare("add_file.parcel");
+
+    let mut parcel = ParcelHandle::load(f.make_rw()).unwrap();
+    assert_eq!(parcel.read(2, 0, None).unwrap(), b"foo");
+    parcel
+        .add_file(
+            FileAdd::Bytes(b"bar".to_vec()),
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+    parcel.store().unwrap();
+    f.compare("add_reload_add.parcel");
+}
