@@ -98,6 +98,10 @@ impl ParcelHandle {
     pub fn add_hardlink(&mut self, target: OsString) -> Result<u64> {
         self.parcel.add_hardlink(target)
     }
+    /// Delete an item from the parcel
+    pub fn delete(&mut self, ino: u64) -> Result<()> {
+        self.parcel.delete(ino)
+    }
     /// Get the inode number for a path
     pub fn select(&self, path: PathBuf) -> Option<u64> {
         self.parcel.select(path)
@@ -279,9 +283,8 @@ impl Parcel {
     }
 
     fn store<W: Read + Write + Seek>(&mut self, mut output: W) -> Result<()> {
-
-        let buf = serde_yaml::to_vec(self)?;
-        let file_offset = (buf.len()+4+5) as u64;
+        let mut buf = serde_yaml::to_vec(self)?;
+        let mut file_offset = (buf.len() + 4 + 5) as u64;
 
         if let Some(cur_file_offset) = self.file_offset {
             match file_offset.cmp(&cur_file_offset) {
@@ -293,16 +296,19 @@ impl Parcel {
                     output.seek(SeekFrom::Start(file_offset))?;
                     output.write_all(&buf)?;
                 }
-                Ordering::Less => {todo!()}
+                Ordering::Less => {
+                    buf.resize((cur_file_offset - 4 - 5) as usize, b' ');
+                    file_offset = cur_file_offset;
+                }
             }
         }
 
         output.seek(SeekFrom::Start(0))?;
         output.write_all(b"413\n")?;
-        serde_yaml::to_writer(&mut output, self)?;
+        output.write_all(&buf)?;
         output.write_all(b"\n...\n")?;
 
-        assert!(file_offset == output.stream_position()?);
+        assert_eq!(file_offset, output.stream_position()?);
 
         for (ino, val) in self.to_add.iter() {
             match &self.content[ino] {
@@ -613,5 +619,11 @@ impl Parcel {
 
     fn getxattrs(&self, ino: u64) -> Option<BTreeMap<OsString, Vec<u8>>> {
         Some(self.inodes.get(&ino)?.xattrs.clone())
+    }
+
+    fn delete(&mut self, ino: u64) -> Result<()> {
+        self.inodes.remove(&ino).ok_or(ParcelError::Enoent)?;
+        self.content.remove(&ino).ok_or(ParcelError::Enoent)?;
+        Ok(())
     }
 }

@@ -88,7 +88,13 @@ fn add_symlink() {
     let f = Fixture::blank("test.parcel");
     let mut parcel = ParcelHandle::new();
     parcel.set_file(f.make_rw());
-    parcel.add_symlink(OsString::from("foo"),Default::default(), Default::default()).unwrap();
+    parcel
+        .add_symlink(
+            OsString::from("foo"),
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
     parcel.store().unwrap();
     f.compare("add_symlink.parcel");
 }
@@ -107,7 +113,7 @@ fn add_hardlink() {
         .unwrap();
     parcel.insert_dirent(1, "foo".into(), add).unwrap();
     let link = parcel.add_hardlink(OsString::from("/foo")).unwrap();
-    assert_eq!(add,link);
+    assert_eq!(add, link);
     parcel.store().unwrap();
     f.compare("insert_file_dirent.parcel");
 }
@@ -179,4 +185,26 @@ fn add_reload_add() {
         .unwrap();
     parcel.store().unwrap();
     f.compare("add_reload_add.parcel");
+}
+
+#[test]
+fn add_reload_delete() {
+    let f = Fixture::blank("test.parcel");
+    let mut parcel = ParcelHandle::new();
+    parcel.set_file(f.make_rw());
+    let add = parcel
+        .add_file(
+            FileAdd::Bytes(b"foo".to_vec()),
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+    parcel.store().unwrap();
+    f.compare("add_file.parcel");
+
+    let mut parcel = ParcelHandle::load(f.make_rw()).unwrap();
+    assert_eq!(parcel.read(2, 0, None).unwrap(), b"foo");
+    parcel.delete(add).unwrap();
+    parcel.store().unwrap();
+    f.compare("add_reload_delete.parcel");
 }
