@@ -1,3 +1,5 @@
+use std::ffi::OsString;
+
 use pyxis_parcel::{FileAdd, ParcelHandle};
 
 mod common;
@@ -69,6 +71,35 @@ fn add_dir() {
     parcel.add_directory(Default::default(), Default::default());
     parcel.store().unwrap();
     f.compare("add_dir.parcel");
+}
+
+#[test]
+fn add_symlink() {
+    let f = Fixture::blank("test.parcel");
+    let mut parcel = ParcelHandle::new();
+    parcel.set_file(f.make_rw());
+    parcel.add_symlink(OsString::from("foo"),Default::default(), Default::default()).unwrap();
+    parcel.store().unwrap();
+    f.compare("add_symlink.parcel");
+}
+
+#[test]
+fn add_hardlink() {
+    let f = Fixture::blank("test.parcel");
+    let mut parcel = ParcelHandle::new();
+    parcel.set_file(f.make_rw());
+    let add = parcel
+        .add_file(
+            FileAdd::Bytes(b"foo".to_vec()),
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+    parcel.insert_dirent(1, "foo".into(), add).unwrap();
+    let link = parcel.add_hardlink(OsString::from("/foo")).unwrap();
+    assert_eq!(add,link);
+    parcel.store().unwrap();
+    f.compare("insert_file_dirent.parcel");
 }
 
 #[test]
