@@ -74,6 +74,16 @@ fn add_dir() {
 }
 
 #[test]
+fn add_char() {
+    let f = Fixture::blank("test.parcel");
+    let mut parcel = ParcelHandle::new();
+    parcel.set_file(f.make_rw());
+    parcel.add_char(Default::default(), Default::default());
+    parcel.store().unwrap();
+    f.compare("add_char.parcel");
+}
+
+#[test]
 fn add_symlink() {
     let f = Fixture::blank("test.parcel");
     let mut parcel = ParcelHandle::new();
