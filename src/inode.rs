@@ -79,7 +79,7 @@ impl Default for InodeAttr {
 }
 
 /// The type of the inode
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord, Copy, Clone)]
 pub enum InodeKind {
     /// A directory
     Directory,

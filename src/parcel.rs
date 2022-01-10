@@ -15,8 +15,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::ParcelError,
-    inode::{FileAttr, FileReference, Inode, InodeAttr, InodeContent, InodeKind},
+    inode::{FileReference, Inode, InodeAttr, InodeContent, InodeKind},
     metadata::ParcelMetadata,
+    FileAttr,
     PARCEL_VERSION, ROOT_ATTRS,
 };
 
