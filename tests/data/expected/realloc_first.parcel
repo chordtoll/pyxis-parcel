@@ -26,7 +26,26 @@ inodes:
       rdev: 0
     xattrs: {}
   2:
-    kind: Symlink
+    kind: RegularFile
+    parent: 0
+    attrs:
+      atime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      mtime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      ctime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      perm: 0
+      nlink: 1
+      uid: 0
+      gid: 0
+      rdev: 0
+    xattrs: {}
+  3:
+    kind: RegularFile
     parent: 0
     attrs:
       atime:
@@ -48,6 +67,15 @@ content:
   1:
     Directory: {}
   2:
-    Symlink: foo
+    RegularFile:
+      offset: 6
+      size: 3
+      capacity: 6
+  3:
+    RegularFile:
+      offset: 3
+      size: 3
+      capacity: 3
 
 ...
+foobarfoo   

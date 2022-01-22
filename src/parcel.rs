@@ -17,8 +17,7 @@ use crate::{
     error::ParcelError,
     inode::{FileReference, Inode, InodeAttr, InodeContent, InodeKind},
     metadata::ParcelMetadata,
-    FileAttr,
-    PARCEL_VERSION, ROOT_ATTRS,
+    FileAttr, PARCEL_VERSION, ROOT_ATTRS,
 };
 
 /// Temporarily holds a file we want to add to the parcel
@@ -28,6 +27,8 @@ pub enum FileAdd {
     Bytes(Vec<u8>),
     /// We want to add a file by its path on disk
     Name(OsString),
+    /// We're creating a new empty file
+    Empty,
 }
 
 pub trait FileBacking: BufRead + Write + Seek {}
@@ -82,6 +83,16 @@ impl ParcelHandle {
     ) -> Result<u64> {
         self.parcel.add_file(from, attrs, xattrs)
     }
+    /// Reallocatge a file to allow it to grow
+    pub fn realloc_reserved(&mut self, ino: u64, capacity: u64) -> Result<()> {
+        self.parcel.realloc_reserved(
+            self.backing
+                .as_mut()
+                .expect("Writing parcel with no backing file"),
+            ino,
+            capacity,
+        )
+    }
     /// Add a directory to the parcel
     pub fn add_directory(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
         self.parcel.add_directory(attrs, xattrs)
@@ -129,24 +140,53 @@ impl ParcelHandle {
             buf,
         )
     }
+    /// Write to a file, expanding it if necessary
+    pub fn expand_write(&mut self, ino: u64, offset: u64, buf: &[u8]) -> Result<u64> {
+        self.parcel.expand_write(
+            self.backing
+                .as_mut()
+                .expect("Writing to parcel with no backing file"),
+            ino,
+            offset,
+            buf,
+        )
+    }
     /// Add a character device to the parcel
     pub fn add_char(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
         self.parcel.add_char(attrs, xattrs)
     }
     /// Insert an entry to a directory mapping a filename to an inode
-    pub fn insert_dirent(&mut self, parent: u64, name: OsString, child: u64) -> Result<()> {
-        self.parcel.insert_dirent(parent, name, child)
+    pub fn insert_dirent(
+        &mut self,
+        parent: u64,
+        name: OsString,
+        child: u64,
+        kind: InodeKind,
+    ) -> Result<()> {
+        self.parcel.insert_dirent(parent, name, child, kind)
+    }
+    /// Insert a whiteout entry for a filename in a directory
+    pub fn insert_whiteout(&mut self, parent: u64, name: OsString) -> Result<()> {
+        self.parcel.insert_whiteout(parent, name)
     }
     /// Get the attributes of an inode
     pub fn getattr(&self, ino: u64) -> Option<FileAttr> {
         self.parcel.getattr(ino)
+    }
+    /// Get a mutable ref to the attributes of an inode
+    pub fn getattr_mut(&mut self, ino: u64) -> Option<&mut InodeAttr> {
+        self.parcel.getattr_mut(ino)
+    }
+    /// Check if an inode exists
+    pub fn exists(&self, ino: u64) -> bool {
+        self.parcel.exists(ino)
     }
     /// Read the contents of a directory
     pub fn readdir(&self, ino: u64) -> Option<Vec<(u64, InodeKind, String)>> {
         self.parcel.readdir(ino)
     }
     /// Get the inode number of an object by name within a directory
-    pub fn lookup(&self, parent: u64, name: String) -> Option<u64> {
+    pub fn lookup(&self, parent: u64, name: &str) -> Option<u64> {
         self.parcel.lookup(parent, name)
     }
     /// Get the target of a symlink
@@ -157,26 +197,29 @@ impl ParcelHandle {
     pub fn getxattrs(&self, ino: u64) -> Option<BTreeMap<OsString, Vec<u8>>> {
         self.parcel.getxattrs(ino)
     }
+    /// Get a mutable reference to the parcel's metadata
+    pub fn metadata(&mut self) -> &mut ParcelMetadata {
+        &mut self.parcel.metadata
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Parcel {
-    version:      u32,
-    root_inode:   u64,
-    /// The parcel's package metadata
-    pub metadata: ParcelMetadata,
-    inodes:       BTreeMap<u64, Inode>,
-    content:      BTreeMap<u64, InodeContent>,
+    version:     u32,
+    root_inode:  u64,
+    metadata:    ParcelMetadata,
+    inodes:      BTreeMap<u64, Inode>,
+    content:     BTreeMap<u64, InodeContent>,
     #[serde(skip)]
-    file_offset:  Option<u64>,
+    file_offset: Option<u64>,
     #[serde(skip)]
-    next_inode:   u64,
+    next_inode:  u64,
     #[serde(skip)]
-    next_offset:  u64,
+    next_offset: u64,
     #[serde(skip)]
-    to_add:       BTreeMap<u64, FileAdd>,
+    to_add:      BTreeMap<u64, FileAdd>,
     #[serde(skip)]
-    on_disk:      bool,
+    on_disk:     bool,
 }
 
 fn get_parcel_version(buf: &[u8]) -> Result<u32> {
@@ -273,7 +316,7 @@ impl Parcel {
             .values()
             .map(|x| {
                 if let InodeContent::RegularFile(f) = x {
-                    f.offset + f.size
+                    f.offset + f.capacity
                 } else {
                     0
                 }
@@ -291,6 +334,9 @@ impl Parcel {
             match file_offset.cmp(&cur_file_offset) {
                 Ordering::Equal => {}
                 Ordering::Greater => {
+                    // Amortize expansion costs by overexpanding
+                    file_offset = max(file_offset, ((cur_file_offset as f64) * 1.2) as u64);
+                    buf.resize((file_offset - 4 - 5) as usize, b' ');
                     output.seek(SeekFrom::Start(cur_file_offset))?;
                     let mut buf = Vec::new();
                     output.read_to_end(&mut buf)?;
@@ -298,6 +344,7 @@ impl Parcel {
                     output.write_all(&buf)?;
                 }
                 Ordering::Less => {
+                    // For now, never shrink, just pad the buffer
                     buf.resize((cur_file_offset - 4 - 5) as usize, b' ');
                     file_offset = cur_file_offset;
                 }
@@ -319,6 +366,7 @@ impl Parcel {
                         match val {
                             FileAdd::Bytes(content) => output.write(content)? as u64,
                             FileAdd::Name(name) => io::copy(&mut File::open(name)?, &mut output)?,
+                            FileAdd::Empty => 0,
                         },
                         file.size
                     );
@@ -326,6 +374,7 @@ impl Parcel {
                 _ => panic!(),
             }
         }
+        self.to_add.clear();
         self.on_disk = true;
         self.file_offset = Some(file_offset);
         output.flush()?;
@@ -355,21 +404,79 @@ impl Parcel {
         let filesize = match &from {
             FileAdd::Bytes(i) => i.len() as u64,
             FileAdd::Name(name) => fs::metadata(name)?.len(),
+            FileAdd::Empty => 0,
         };
 
-        self.to_add.insert(self.next_inode, from);
+        if filesize > 0 {
+            self.to_add.insert(self.next_inode, from);
+        }
         self.content.insert(
             self.next_inode,
             InodeContent::RegularFile(FileReference {
-                offset: self.next_offset,
-                size:   filesize,
+                offset:   self.next_offset,
+                size:     filesize,
+                capacity: filesize,
             }),
         );
         self.next_offset += filesize;
 
         self.next_inode += 1;
-        self.on_disk = false;
+        if filesize > 0 {
+            self.on_disk = false;
+        }
         Ok(self.next_inode - 1)
+    }
+
+    fn realloc_reserved<W: Read + Write + Seek>(
+        &mut self,
+        writer: &mut W,
+        ino: u64,
+        capacity: u64,
+    ) -> Result<()> {
+        if let InodeContent::RegularFile(inode) =
+            self.content.get_mut(&ino).ok_or(ParcelError::Enoent)?
+        {
+            match capacity.cmp(&inode.capacity) {
+                Ordering::Equal => (),
+                Ordering::Greater => {
+                    if self.next_offset == inode.offset + inode.capacity {
+                        writer.seek(SeekFrom::Start(
+                            self.file_offset.expect(
+                                "Parcel not properly loaded- no offset stored to data section",
+                            ) + self.next_offset,
+                        ))?;
+                        writer.write_all(&vec![b' '; (capacity - inode.capacity) as usize])?;
+                        inode.capacity = capacity;
+                        self.next_offset = inode.offset + inode.capacity;
+                    } else {
+                        writer.seek(SeekFrom::Start(
+                            self.file_offset.expect(
+                                "Parcel not properly loaded- no offset stored to data section",
+                            ) + inode.offset,
+                        ))?;
+                        let mut buf = vec![0u8; inode.size as usize];
+                        writer.read_exact(&mut buf)?;
+
+                        inode.offset = self.next_offset;
+                        inode.capacity = capacity;
+                        self.next_offset = inode.offset + inode.capacity;
+
+                        writer.seek(SeekFrom::Start(
+                            self.file_offset.expect(
+                                "Parcel not properly loaded- no offset stored to data section",
+                            ) + inode.offset,
+                        ))?;
+                        writer.write_all(&buf)?;
+                        writer.write_all(&vec![b' '; (inode.capacity - inode.size) as usize])?;
+                    }
+                }
+                Ordering::Less => inode.capacity = capacity,
+            }
+            inode.size = min(inode.size, inode.capacity);
+            Ok(())
+        } else {
+            unimplemented!();
+        }
     }
 
     fn add_directory(&mut self, attrs: InodeAttr, xattrs: BTreeMap<OsString, Vec<u8>>) -> u64 {
@@ -451,16 +558,33 @@ impl Parcel {
         self.next_inode - 1
     }
 
-    fn insert_dirent(&mut self, parent: u64, name: OsString, child: u64) -> Result<()> {
+    fn insert_dirent(
+        &mut self,
+        parent: u64,
+        name: OsString,
+        child: u64,
+        kind: InodeKind,
+    ) -> Result<()> {
         match self.content.get_mut(&parent).unwrap() {
             InodeContent::Directory(dir) => dir.insert(
                 name.into_string().or(Err(ParcelError::StringConversion))?,
-                child,
+                (child, kind),
             ),
             _ => panic!(),
         };
 
         self.inodes.get_mut(&child).unwrap().parent = parent;
+        Ok(())
+    }
+
+    fn insert_whiteout(&mut self, parent: u64, name: OsString) -> Result<()> {
+        match self.content.get_mut(&parent).unwrap() {
+            InodeContent::Directory(dir) => dir.insert(
+                name.into_string().or(Err(ParcelError::StringConversion))?,
+                (0, InodeKind::Whiteout),
+            ),
+            _ => panic!(),
+        };
         Ok(())
     }
 
@@ -475,7 +599,7 @@ impl Parcel {
                 ino = Some(self.root_inode);
             } else {
                 ino = Some(match self.content.get(&ino?)? {
-                    InodeContent::Directory(d) => *d.get(ent.to_str()?)?,
+                    InodeContent::Directory(d) => d.get(ent.to_str()?)?.0,
                     _ => return None,
                 });
             }
@@ -487,7 +611,7 @@ impl Parcel {
         &self,
         reader: &mut R,
         ino: u64,
-        offset: u64,
+        mut offset: u64,
         size: Option<u64>,
     ) -> Result<Vec<u8>> {
         assert!(
@@ -504,6 +628,9 @@ impl Parcel {
                 + file.offset
                 + offset,
         ))?;
+        if offset > file.size {
+            offset = file.size;
+        }
         let size = match size {
             Some(s) => max(min(s + offset, file.size) - offset, 0),
             None => file.size,
@@ -514,7 +641,7 @@ impl Parcel {
     }
 
     fn write<W: Write + Seek>(
-        &self,
+        &mut self,
         writer: &mut W,
         ino: u64,
         offset: u64,
@@ -524,7 +651,7 @@ impl Parcel {
             self.on_disk,
             "Parcel is not on disk, cannot write without flushing"
         );
-        let file = match self.content.get(&ino).ok_or(ParcelError::Enoent)? {
+        let file = match self.content.get_mut(&ino).ok_or(ParcelError::Enoent)? {
             InodeContent::RegularFile(f) => f,
             _ => return Err(ParcelError::NotFile.into()),
         };
@@ -535,12 +662,35 @@ impl Parcel {
                 + offset,
         ))?;
         let size = buf.len().try_into()?;
-        if size + offset > file.size {
+        if size + offset > file.capacity {
             Err(ParcelError::NeedExpansion.into())
         } else {
+            file.size = max(file.size, size + offset);
             writer.write_all(buf)?;
             Ok(size)
         }
+    }
+
+    fn expand_write<W: Read + Write + Seek>(
+        &mut self,
+        writer: &mut W,
+        ino: u64,
+        offset: u64,
+        buf: &[u8],
+    ) -> Result<u64> {
+        let file = match self.content.get(&ino).ok_or(ParcelError::Enoent)? {
+            InodeContent::RegularFile(f) => f,
+            _ => return Err(ParcelError::NotFile.into()),
+        };
+        let size: u64 = buf.len().try_into()?;
+        if size + offset > file.size {
+            self.realloc_reserved(writer, ino, size + offset)?;
+        }
+        self.write(writer, ino, offset, buf)
+    }
+
+    fn exists(&self, ino: u64) -> bool {
+        self.inodes.contains_key(&ino)
     }
 
     fn getattr(&self, ino: u64) -> Option<FileAttr> {
@@ -552,12 +702,14 @@ impl Parcel {
             InodeContent::Directory(_) => 0,
             InodeContent::Symlink(s) => s.len() as u64,
             InodeContent::Char(_) => 0,
+            InodeContent::Whiteout => return None,
         };
         let kind = match content {
             InodeContent::RegularFile(_) => InodeKind::RegularFile,
             InodeContent::Directory(_) => InodeKind::Directory,
             InodeContent::Symlink(_) => InodeKind::Symlink,
             InodeContent::Char(_) => InodeKind::CharDevice,
+            InodeContent::Whiteout => return None,
         };
         Some(FileAttr {
             atime: attrs.atime,
@@ -578,33 +730,33 @@ impl Parcel {
         })
     }
 
+    fn getattr_mut(&mut self, ino: u64) -> Option<&mut InodeAttr> {
+        let inode = self.inodes.get_mut(&ino)?;
+        let attrs = &mut inode.attrs;
+        Some(attrs)
+    }
+
     fn readdir(&self, ino: u64) -> Option<Vec<(u64, InodeKind, String)>> {
         let mut res: Vec<(u64, InodeKind, String)> = Vec::new();
 
-        let content = match self.content.get(&ino)? {
-            InodeContent::Directory(d) => d,
+        let content = match self.content.get(&ino) {
+            Some(InodeContent::Directory(d)) => d,
             _ => return None,
         };
-        for (k, v) in content.iter() {
-            let kind = match self.content.get(v)? {
-                InodeContent::RegularFile(_) => InodeKind::RegularFile,
-                InodeContent::Directory(_) => InodeKind::Directory,
-                InodeContent::Symlink(_) => InodeKind::Symlink,
-                InodeContent::Char(_) => InodeKind::CharDevice,
-            };
-            res.push((*v, kind, k.to_string()))
+        for (k, (v, kind)) in content.iter() {
+            res.push((*v, *kind, k.to_string()))
         }
         Some(res)
     }
 
-    fn lookup(&self, parent: u64, name: String) -> Option<u64> {
+    fn lookup(&self, parent: u64, name: &str) -> Option<u64> {
         let content = match self.content.get(&parent)? {
             InodeContent::Directory(d) => d,
             _ => return None,
         };
-        for (k, v) in content.iter() {
-            if *k == name {
-                return Some(*v);
+        for (n, (i, k)) in content.iter() {
+            if n == name && k != &InodeKind::Whiteout {
+                return Some(*i);
             }
         }
         None

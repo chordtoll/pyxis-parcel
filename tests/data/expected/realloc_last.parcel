@@ -26,7 +26,7 @@ inodes:
       rdev: 0
     xattrs: {}
   2:
-    kind: Symlink
+    kind: RegularFile
     parent: 0
     attrs:
       atime:
@@ -48,6 +48,10 @@ content:
   1:
     Directory: {}
   2:
-    Symlink: foo
+    RegularFile:
+      offset: 0
+      size: 3
+      capacity: 6
 
 ...
+foo   

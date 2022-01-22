@@ -1,6 +1,6 @@
 use std::ffi::OsString;
 
-use pyxis_parcel::{FileAdd, ParcelHandle};
+use pyxis_parcel::{FileAdd, InodeKind, ParcelHandle};
 
 mod common;
 use common::Fixture;
@@ -58,7 +58,9 @@ fn insert_file_dirent() {
             Default::default(),
         )
         .unwrap();
-    parcel.insert_dirent(1, "foo".into(), add).unwrap();
+    parcel
+        .insert_dirent(1, "foo".into(), add, InodeKind::RegularFile)
+        .unwrap();
     parcel.store().unwrap();
     f.compare("insert_file_dirent.parcel");
 }
@@ -111,7 +113,9 @@ fn add_hardlink() {
             Default::default(),
         )
         .unwrap();
-    parcel.insert_dirent(1, "foo".into(), add).unwrap();
+    parcel
+        .insert_dirent(1, "foo".into(), add, InodeKind::RegularFile)
+        .unwrap();
     let link = parcel.add_hardlink(OsString::from("/foo")).unwrap();
     assert_eq!(add, link);
     parcel.store().unwrap();
@@ -124,7 +128,9 @@ fn insert_dir_dirent() {
     let mut parcel = ParcelHandle::new();
     parcel.set_file(f.make_rw());
     let add = parcel.add_directory(Default::default(), Default::default());
-    parcel.insert_dirent(1, "foo".into(), add).unwrap();
+    parcel
+        .insert_dirent(1, "foo".into(), add, InodeKind::Directory)
+        .unwrap();
     parcel.store().unwrap();
     f.compare("insert_dir_dirent.parcel");
 }

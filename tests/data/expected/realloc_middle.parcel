@@ -63,6 +63,25 @@ inodes:
       gid: 0
       rdev: 0
     xattrs: {}
+  4:
+    kind: RegularFile
+    parent: 0
+    attrs:
+      atime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      mtime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      ctime:
+        secs_since_epoch: 0
+        nanos_since_epoch: 0
+      perm: 0
+      nlink: 1
+      uid: 0
+      gid: 0
+      rdev: 0
+    xattrs: {}
 content:
   1:
     Directory: {}
@@ -73,9 +92,14 @@ content:
       capacity: 3
   3:
     RegularFile:
-      offset: 3
+      offset: 9
+      size: 3
+      capacity: 6
+  4:
+    RegularFile:
+      offset: 6
       size: 3
       capacity: 3
 
 ...
-foobar
+foobarbazbar   

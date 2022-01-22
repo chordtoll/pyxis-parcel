@@ -1,6 +1,6 @@
 413
 ---
-version: 1
+version: 2
 root_inode: 1
 metadata:
   version: ""
@@ -51,6 +51,7 @@ content:
     RegularFile:
       offset: 0
       size: 3
+      capacity: 3
 
 ...
 foo

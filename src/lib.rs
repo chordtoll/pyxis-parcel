@@ -26,7 +26,7 @@ mod reader_writer;
 
 pub use reader_writer::ReaderWriter;
 
-const PARCEL_VERSION: u32 = 1;
+const PARCEL_VERSION: u32 = 2;
 
 const ROOT_ATTRS: InodeAttr = InodeAttr {
     atime: UNIX_EPOCH,

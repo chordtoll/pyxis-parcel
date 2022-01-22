@@ -8,7 +8,7 @@ use std::{
 };
 
 use clap::{App, Arg};
-use pyxis_parcel::{FileAdd, InodeAttr, ParcelHandle, ReaderWriter};
+use pyxis_parcel::{FileAdd, InodeAttr, InodeKind, ParcelHandle, ReaderWriter};
 use walkdir::WalkDir;
 
 fn main() {
@@ -66,7 +66,12 @@ fn main() {
                     .unwrap();
                 dir_map.insert(entry_path.clone(), ino);
                 parcel
-                    .insert_dirent(parent_inode, entry_name.to_os_string(), ino)
+                    .insert_dirent(
+                        parent_inode,
+                        entry_name.to_os_string(),
+                        ino,
+                        InodeKind::RegularFile,
+                    )
                     .unwrap();
             } else if file_type.is_dir() {
                 let attrs = InodeAttr::from_meta(&meta);
@@ -80,7 +85,12 @@ fn main() {
                 let ino = parcel.add_directory(attrs, xattrs);
                 dir_map.insert(entry_path.clone(), ino);
                 parcel
-                    .insert_dirent(parent_inode, entry_name.to_os_string(), ino)
+                    .insert_dirent(
+                        parent_inode,
+                        entry_name.to_os_string(),
+                        ino,
+                        InodeKind::Directory,
+                    )
                     .unwrap();
             } else if file_type.is_symlink() {
                 let attrs = InodeAttr::from_meta(&meta);
@@ -103,7 +113,12 @@ fn main() {
                     .unwrap();
                 dir_map.insert(entry_path.clone(), ino);
                 parcel
-                    .insert_dirent(parent_inode, entry_name.to_os_string(), ino)
+                    .insert_dirent(
+                        parent_inode,
+                        entry_name.to_os_string(),
+                        ino,
+                        InodeKind::Symlink,
+                    )
                     .unwrap();
             } else if file_type.is_char_device() {
                 let attrs = InodeAttr::from_meta(&meta);
@@ -117,7 +132,12 @@ fn main() {
                 let ino = parcel.add_char(attrs, xattrs);
                 dir_map.insert(entry_path.clone(), ino);
                 parcel
-                    .insert_dirent(parent_inode, entry_name.to_os_string(), ino)
+                    .insert_dirent(
+                        parent_inode,
+                        entry_name.to_os_string(),
+                        ino,
+                        InodeKind::CharDevice,
+                    )
                     .unwrap();
             } else if file_type.is_block_device() {
                 unimplemented!("Block device");

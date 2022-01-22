@@ -89,10 +89,12 @@ pub enum InodeKind {
     Symlink,
     /// A character device
     CharDevice,
+    /// A deleted inode
+    Whiteout,
 }
 
 /// Holds the data for one object
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Inode {
     /// The type of the inode
     pub kind:   InodeKind,
@@ -105,23 +107,42 @@ pub struct Inode {
 }
 
 /// Describes how to find the contents of the file in the data section
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileReference {
     /// The offset past the start of the data section at which the file starts
-    pub offset: u64,
+    pub offset:   u64,
     /// The length of the file
-    pub size:   u64,
+    pub size:     u64,
+    /// The amount of space reserved for the file
+    pub capacity: u64,
 }
 
 /// Describes the contents of the object
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum InodeContent {
     /// A directory is a map of names to inode IDs
-    Directory(BTreeMap<String, u64>),
+    Directory(BTreeMap<String, (u64, InodeKind)>),
     /// A file is a pointer to an offset+length
     RegularFile(FileReference),
     /// A symlink is a string describing the link target
     Symlink(String),
     /// A character device is a device ID
     Char(u64),
+    /// A whiteout inode is a placeholder
+    Whiteout,
+}
+
+impl From<FileAttr> for InodeAttr {
+    fn from(v: FileAttr) -> Self {
+        Self {
+            atime: v.atime,
+            mtime: v.mtime,
+            ctime: v.ctime,
+            perm:  v.perm as u32,
+            nlink: v.nlink,
+            uid:   v.uid,
+            gid:   v.gid,
+            rdev:  v.rdev as u64,
+        }
+    }
 }

@@ -1,6 +1,6 @@
 413
 ---
-version: 1
+version: 2
 root_inode: 1
 metadata:
   version: ""
@@ -89,14 +89,17 @@ content:
     RegularFile:
       offset: 0
       size: 3
+      capacity: 3
   3:
     RegularFile:
       offset: 3
       size: 3
+      capacity: 3
   4:
     RegularFile:
       offset: 6
       size: 3
+      capacity: 3
 
 ...
 foobarbaz

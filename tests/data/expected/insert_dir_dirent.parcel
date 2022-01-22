@@ -1,6 +1,6 @@
 413
 ---
-version: 1
+version: 2
 root_inode: 1
 metadata:
   version: ""
@@ -47,7 +47,9 @@ inodes:
 content:
   1:
     Directory:
-      foo: 2
+      foo:
+        - 2
+        - Directory
   2:
     Directory: {}
 
